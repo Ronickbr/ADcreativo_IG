@@ -66,11 +66,11 @@ const STYLES = [
   { id: 'exploded', name: 'Exploded View', icon: Sparkles, desc: 'Vista explodida das partes' },
   { id: 'anatomy', name: 'Anatomy', icon: MousePointer2, desc: 'Anatomia detalhada do produto' },
   { id: 'grunge', name: 'Grunge / Colagem', icon: Palette, desc: 'Estilo Mixed Media urbano' },
-] as const;
+];
 
 const FORMATS = [
   { id: 'post', name: 'Post Instagram', ratio: '1:1', desc: '1080 x 1080 px' },
-  { id: 'banner', name: 'Banner Web', ratio: '4:1', desc: '1200 x 400 px' },
+  { id: 'banner', name: 'Banner Web', ratio: '16:9', desc: '1200 x 675 px' },
 ] as const;
 
 export default function App() {
@@ -86,6 +86,7 @@ export default function App() {
   const [techData, setTechData] = useState('');
   const [selectedStyle, setSelectedStyle] = useState<AdStyle>('realistic');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStep, setGenerationStep] = useState<string>('');
   const [result, setResult] = useState<AdResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,6 +96,12 @@ export default function App() {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'bg' | 'prod') => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Check file size (limit to 4MB for better reliability)
+    if (file.size > 4 * 1024 * 1024) {
+      setError('A imagem é muito grande. Por favor, use arquivos menores que 4MB.');
+      return;
+    }
 
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -119,6 +126,7 @@ export default function App() {
     }
 
     setIsGenerating(true);
+    setGenerationStep('Analisando imagens...');
     setError(null);
 
     try {
@@ -139,6 +147,7 @@ export default function App() {
       const formatDetails = FORMATS.find(f => f.id === activeFormat)!;
 
       // 1. Generate Copy and Visual Strategy
+      setGenerationStep('Criando estratégia de copy...');
       const copyResponse = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
         contents: [
@@ -163,16 +172,17 @@ export default function App() {
                 DIRETRIZES:
                 - Headline impactante condizente com o estilo ${selectedStyle} e o formato ${activeFormat}.
                 - Transforme dados técnicos em benefícios.
-                - Crie uma legenda com hashtags.
+                ${activeFormat === 'post' ? '- Crie uma legenda com hashtags.' : '- NÃO é necessário legenda nem hashtags para banners.'}
                 - Descreva exatamente como o produto deve ser integrado ao fundo usando o estilo ${selectedStyle}.
+                ${activeFormat === 'banner' ? '- Para banners, os benefícios (destaques) DEVEM ser incorporados visualmente na própria imagem.' : ''}
                 
                 Responda estritamente em JSON:
                 {
                   "headline": "Título",
                   "benefits": ["b1", "b2", "b3"],
                   "cta": "CTA",
-                  "caption": "Legenda",
-                  "hashtags": ["#tag1", "#tag2"],
+                  "caption": "${activeFormat === 'post' ? 'Legenda' : ''}",
+                  "hashtags": [${activeFormat === 'post' ? '"#tag1", "#tag2"' : ''}],
                   "visualDescription": "Instruções detalhadas de composição visual para o estilo ${selectedStyle} no formato ${activeFormat}"
                 }
               `}
@@ -199,8 +209,10 @@ export default function App() {
       const adData = JSON.parse(copyResponse.text);
 
       // 2. Generate the Final Composition
+      setGenerationStep('Compondo arte visual...');
+      // Using gemini-2.5-flash-image for both to ensure compatibility with standard API keys
       const imageResponse = await ai.models.generateContent({
-        model: activeFormat === 'banner' ? 'gemini-3.1-flash-image-preview' : 'gemini-2.5-flash-image',
+        model: 'gemini-2.5-flash-image',
         contents: {
           parts: [
             { inlineData: { mimeType: bgImage.file!.type, data: bgImage.base64 } },
@@ -220,6 +232,7 @@ export default function App() {
               ${selectedStyle === 'anatomy' ? 'Add anatomical callouts and labels explaining the internal components.' : ''}
               ${selectedStyle === 'grunge' ? 'Apply mixed media collage textures, paper tears, and urban grunge filters.' : ''}
               Overlay the text: "${adData.headline}" and "${adData.cta}".
+              ${activeFormat === 'banner' ? `Also include these benefits as text elements in the composition: ${adData.benefits.join(', ')}.` : ''}
               Maintain high resolution, premium e-commerce aesthetic.`,
             },
           ],
@@ -239,17 +252,25 @@ export default function App() {
         }
       }
 
+      if (!imageUrl) {
+        throw new Error('Não foi possível gerar a imagem final. Tente novamente.');
+      }
+
       setResult({ ...adData, imageUrl });
     } catch (err: any) {
-      console.error(err);
+      console.error('Generation Error:', err);
       
-      if (err.message?.includes('429') || err.status === 429 || JSON.stringify(err).includes('RESOURCE_EXHAUSTED')) {
-        setError('Limite de uso atingido (Quota Exceeded). Por favor, aguarde um minuto antes de tentar novamente.');
+      const errorMessage = err.message || '';
+      if (errorMessage.includes('429') || JSON.stringify(err).includes('RESOURCE_EXHAUSTED')) {
+        setError('Limite de uso atingido. Aguarde um minuto e tente novamente.');
+      } else if (errorMessage.includes('imageConfig.aspectRatio')) {
+        setError('O formato selecionado não é suportado pelo modelo atual. Tente o formato Post.');
       } else {
-        setError('Erro ao processar criativo. Tente novamente ou use imagens menores.');
+        setError(`Erro: ${errorMessage || 'Falha na geração do criativo. Tente usar imagens menores ou outro estilo.'}`);
       }
     } finally {
       setIsGenerating(false);
+      setGenerationStep('');
     }
   };
 
@@ -537,7 +558,7 @@ export default function App() {
                 {isGenerating ? (
                   <>
                     <Loader2 className="animate-spin" size={20} />
-                    Criando {activeFormat === 'post' ? 'Post' : 'Banner'}...
+                    {generationStep}
                   </>
                 ) : (
                   <>
@@ -567,10 +588,13 @@ export default function App() {
               <div className="h-full min-h-[600px] bg-white rounded-3xl shadow-sm border border-black/5 flex flex-col items-center justify-center p-12 text-center space-y-6 animate-pulse">
                 <div className={cn(
                   "w-full bg-black/5 rounded-2xl mb-8",
-                  activeFormat === 'post' ? "aspect-square" : "aspect-[4/1]"
+                  activeFormat === 'post' ? "aspect-square" : "aspect-video"
                 )} />
-                <div className="h-4 w-3/4 bg-black/5 rounded-full" />
-                <div className="h-4 w-1/2 bg-black/5 rounded-full" />
+                <div className="flex flex-col items-center gap-4 w-full">
+                  <div className="h-4 w-3/4 bg-black/5 rounded-full" />
+                  <div className="h-4 w-1/2 bg-black/5 rounded-full" />
+                  <p className="text-sm font-medium text-black/40 mt-4">{generationStep}</p>
+                </div>
               </div>
             )}
 
@@ -579,7 +603,7 @@ export default function App() {
                 <div className="bg-white p-4 rounded-[2rem] shadow-xl border border-black/5">
                   <div className={cn(
                     "relative rounded-2xl overflow-hidden bg-black/5 group",
-                    activeFormat === 'post' ? "aspect-square" : "aspect-[4/1]"
+                    activeFormat === 'post' ? "aspect-square" : "aspect-video"
                   )}>
                     {result.imageUrl ? (
                       <img 
@@ -631,17 +655,19 @@ export default function App() {
                     </ul>
                   </div>
 
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-black/40">Legenda e Hashtags</h3>
-                    <div className="bg-[#F9F9F9] p-4 rounded-xl text-sm text-black/80 whitespace-pre-wrap italic">
-                      {result.caption}
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {result.hashtags.map((tag, i) => (
-                          <span key={i} className="text-[#5A5A40] font-bold">{tag}</span>
-                        ))}
+                  {activeFormat === 'post' && (
+                    <div className="space-y-2">
+                      <h3 className="text-xs font-bold uppercase tracking-widest text-black/40">Legenda e Hashtags</h3>
+                      <div className="bg-[#F9F9F9] p-4 rounded-xl text-sm text-black/80 whitespace-pre-wrap italic">
+                        {result.caption}
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {result.hashtags.map((tag, i) => (
+                            <span key={i} className="text-[#5A5A40] font-bold">{tag}</span>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             )}
