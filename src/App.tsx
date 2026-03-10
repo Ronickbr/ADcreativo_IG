@@ -22,8 +22,14 @@ import {
   Palette,
   Layout,
   PenTool,
-  MousePointer2
+  MousePointer2,
+  LogIn,
+  Lock,
+  Mail,
+  User,
+  LogOut
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -68,6 +74,11 @@ const FORMATS = [
 ] as const;
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+
   const [activeFormat, setActiveFormat] = useState<AdFormat>('post');
   const [bgImage, setBgImage] = useState<ImageState>({ file: null, preview: null, base64: null });
   const [prodImage, setProdImage] = useState<ImageState>({ file: null, preview: null, base64: null });
@@ -242,6 +253,91 @@ export default function App() {
     }
   };
 
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loginEmail && loginPassword) {
+      setIsLoggedIn(true);
+      setLoginError(null);
+    } else {
+      setLoginError('Por favor, preencha todos os campos.');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setLoginEmail('');
+    setLoginPassword('');
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-[#F5F5F0] flex items-center justify-center p-6 font-sans">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl border border-black/5 p-10 space-y-8"
+        >
+          <div className="text-center space-y-2">
+            <div className="w-16 h-16 bg-[#1A1A1A] rounded-2xl flex items-center justify-center text-white mx-auto mb-6 shadow-lg">
+              <Sparkles size={32} />
+            </div>
+            <h1 className="text-3xl font-serif font-medium tracking-tight">AdCreative AI</h1>
+            <p className="text-black/40 text-sm font-medium uppercase tracking-widest">Acesso Restrito</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">E-mail</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-black/20" size={18} />
+                <input
+                  type="email"
+                  required
+                  placeholder="seu@email.com"
+                  className="w-full bg-[#F9F9F9] border border-black/5 rounded-2xl py-4 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Senha</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-black/20" size={18} />
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  className="w-full bg-[#F9F9F9] border border-black/5 rounded-2xl py-4 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {loginError && (
+              <p className="text-red-500 text-xs font-medium text-center">{loginError}</p>
+            )}
+
+            <button
+              type="submit"
+              className="w-full bg-[#1A1A1A] text-white py-4 rounded-2xl font-semibold flex items-center justify-center gap-2 hover:bg-black active:scale-[0.98] transition-all shadow-xl shadow-black/10"
+            >
+              <LogIn size={20} /> Entrar no Sistema
+            </button>
+          </form>
+
+          <div className="text-center">
+            <button className="text-[10px] font-bold uppercase tracking-widest text-black/30 hover:text-black transition-colors">
+              Esqueceu sua senha?
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F5F5F0] text-[#1A1A1A] font-sans selection:bg-[#5A5A40] selection:text-white pb-20">
       {/* Header */}
@@ -274,7 +370,13 @@ export default function App() {
 
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-black/60">
             <a href="#" className="hover:text-black transition-colors">Galeria</a>
-            <a href="#" className="hover:text-black transition-colors">Suporte</a>
+            <button 
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-black/5 hover:bg-black/5 transition-colors text-black/80"
+            >
+              <LogOut size={16} />
+              Sair
+            </button>
           </nav>
         </div>
       </header>
