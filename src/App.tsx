@@ -32,6 +32,7 @@ function cn(...inputs: ClassValue[]) {
 }
 
 type AdStyle = 'realistic' | 'infographic' | 'handlettering' | 'doodle' | 'blueprint' | 'knolling' | 'exploded' | 'anatomy' | 'grunge';
+type AdFormat = 'post' | 'banner';
 
 interface AdResult {
   headline: string;
@@ -61,7 +62,13 @@ const STYLES = [
   { id: 'grunge', name: 'Grunge / Colagem', icon: Palette, desc: 'Estilo Mixed Media urbano' },
 ] as const;
 
+const FORMATS = [
+  { id: 'post', name: 'Post Instagram', ratio: '1:1', desc: '1080 x 1080 px' },
+  { id: 'banner', name: 'Banner Web', ratio: '4:1', desc: '1200 x 400 px' },
+] as const;
+
 export default function App() {
+  const [activeFormat, setActiveFormat] = useState<AdFormat>('post');
   const [bgImage, setBgImage] = useState<ImageState>({ file: null, preview: null, base64: null });
   const [prodImage, setProdImage] = useState<ImageState>({ file: null, preview: null, base64: null });
   const [productName, setProductName] = useState('');
@@ -118,6 +125,8 @@ export default function App() {
         grunge: "Estilo Grunge e Colagem (Mixed Media), texturas urbanas, recortes de jornal, elementos sobrepostos e visual artístico rebelde"
       }[selectedStyle];
 
+      const formatDetails = FORMATS.find(f => f.id === activeFormat)!;
+
       // 1. Generate Copy and Visual Strategy
       const copyResponse = await ai.models.generateContent({
         model: "gemini-3.1-pro-preview",
@@ -135,12 +144,13 @@ export default function App() {
                 NOME DO PRODUTO: ${productName}
                 DADOS TÉCNICOS: ${techData || 'Não fornecidos'}
                 ESTILO VISUAL DESEJADO: ${stylePrompt}
+                FORMATO: ${formatDetails.name} (${formatDetails.desc})
                 
                 OBJETIVO:
-                Criar a estratégia de copy e visual para um post de Instagram no estilo ${selectedStyle}.
+                Criar a estratégia de copy e visual para um ${formatDetails.name} no estilo ${selectedStyle}.
                 
                 DIRETRIZES:
-                - Headline impactante condizente com o estilo ${selectedStyle}.
+                - Headline impactante condizente com o estilo ${selectedStyle} e o formato ${activeFormat}.
                 - Transforme dados técnicos em benefícios.
                 - Crie uma legenda com hashtags.
                 - Descreva exatamente como o produto deve ser integrado ao fundo usando o estilo ${selectedStyle}.
@@ -152,7 +162,7 @@ export default function App() {
                   "cta": "CTA",
                   "caption": "Legenda",
                   "hashtags": ["#tag1", "#tag2"],
-                  "visualDescription": "Instruções detalhadas de composição visual para o estilo ${selectedStyle}"
+                  "visualDescription": "Instruções detalhadas de composição visual para o estilo ${selectedStyle} no formato ${activeFormat}"
                 }
               `}
             ]
@@ -179,13 +189,14 @@ export default function App() {
 
       // 2. Generate the Final Composition
       const imageResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: activeFormat === 'banner' ? 'gemini-3.1-flash-image-preview' : 'gemini-2.5-flash-image',
         contents: {
           parts: [
             { inlineData: { mimeType: bgImage.file!.type, data: bgImage.base64 } },
             { inlineData: { mimeType: prodImage.file!.type, data: prodImage.base64 } },
             {
-              text: `Professional Instagram ad composition in ${stylePrompt} style. 
+              text: `Professional ${formatDetails.name} advertisement in ${stylePrompt} style. 
+              Aspect ratio is ${formatDetails.ratio}.
               Integrate the product from the second image into the background of the first image.
               Visual Strategy: ${adData.visualDescription}.
               Style-specific details:
@@ -204,7 +215,7 @@ export default function App() {
         },
         config: {
           imageConfig: {
-            aspectRatio: "1:1",
+            aspectRatio: formatDetails.ratio as any,
           },
         },
       });
@@ -220,7 +231,12 @@ export default function App() {
       setResult({ ...adData, imageUrl });
     } catch (err: any) {
       console.error(err);
-      setError('Erro ao processar criativo. Tente novamente ou use imagens menores.');
+      
+      if (err.message?.includes('429') || err.status === 429 || JSON.stringify(err).includes('RESOURCE_EXHAUSTED')) {
+        setError('Limite de uso atingido (Quota Exceeded). Por favor, aguarde um minuto antes de tentar novamente.');
+      } else {
+        setError('Erro ao processar criativo. Tente novamente ou use imagens menores.');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -237,9 +253,27 @@ export default function App() {
             </div>
             <h1 className="text-lg font-semibold tracking-tight">AdCreative AI</h1>
           </div>
+          
+          {/* Format Switcher */}
+          <div className="flex bg-[#F5F5F0] p-1 rounded-xl border border-black/5">
+            {FORMATS.map((format) => (
+              <button
+                key={format.id}
+                onClick={() => { setActiveFormat(format.id as AdFormat); setResult(null); }}
+                className={cn(
+                  "px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all",
+                  activeFormat === format.id 
+                    ? "bg-white text-black shadow-sm" 
+                    : "text-black/40 hover:text-black/60"
+                )}
+              >
+                {format.name}
+              </button>
+            ))}
+          </div>
+
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-black/60">
             <a href="#" className="hover:text-black transition-colors">Galeria</a>
-            <a href="#" className="hover:text-black transition-colors">Templates</a>
             <a href="#" className="hover:text-black transition-colors">Suporte</a>
           </nav>
         </div>
@@ -250,8 +284,14 @@ export default function App() {
           {/* Inputs Section */}
           <section className="space-y-8">
             <div className="space-y-2">
-              <h2 className="text-3xl font-serif font-medium tracking-tight">Crie seu Criativo Artístico</h2>
-              <p className="text-black/60">Escolha um estilo e transforme suas fotos em arte publicitária.</p>
+              <h2 className="text-3xl font-serif font-medium tracking-tight">
+                Criador de {activeFormat === 'post' ? 'Posts' : 'Banners'}
+              </h2>
+              <p className="text-black/60">
+                {activeFormat === 'post' 
+                  ? 'Formato quadrado ideal para Instagram e redes sociais.' 
+                  : 'Formato panorâmico ideal para sites, blogs e cabeçalhos.'}
+              </p>
             </div>
 
             <div className="space-y-6 bg-white p-8 rounded-3xl shadow-sm border border-black/5">
@@ -260,23 +300,20 @@ export default function App() {
                 <label className="text-xs font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
                   <Palette size={14} /> Estilo Visual
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-2">
                   {STYLES.map((style) => (
                     <button
                       key={style.id}
                       onClick={() => setSelectedStyle(style.id as AdStyle)}
                       className={cn(
-                        "p-4 rounded-2xl border text-left transition-all group",
+                        "p-3 rounded-xl border text-left transition-all group",
                         selectedStyle === style.id 
                           ? "border-[#1A1A1A] bg-[#1A1A1A] text-white shadow-md" 
                           : "border-black/5 bg-[#F9F9F9] hover:border-black/20"
                       )}
                     >
-                      <style.icon size={20} className={cn("mb-2", selectedStyle === style.id ? "text-white" : "text-black/40")} />
-                      <p className="text-sm font-bold">{style.name}</p>
-                      <p className={cn("text-[10px] leading-tight", selectedStyle === style.id ? "text-white/60" : "text-black/40")}>
-                        {style.desc}
-                      </p>
+                      <style.icon size={16} className={cn("mb-1.5", selectedStyle === style.id ? "text-white" : "text-black/40")} />
+                      <p className="text-[10px] font-bold leading-tight">{style.name}</p>
                     </button>
                   ))}
                 </div>
@@ -398,7 +435,7 @@ export default function App() {
                 {isGenerating ? (
                   <>
                     <Loader2 className="animate-spin" size={20} />
-                    Criando Arte...
+                    Criando {activeFormat === 'post' ? 'Post' : 'Banner'}...
                   </>
                 ) : (
                   <>
@@ -415,18 +452,21 @@ export default function App() {
             {!result && !isGenerating && (
               <div className="h-full min-h-[600px] border-2 border-dashed border-black/10 rounded-3xl flex flex-col items-center justify-center text-black/30 p-12 text-center space-y-4">
                 <div className="w-16 h-16 bg-black/5 rounded-full flex items-center justify-center">
-                  <Palette size={32} />
+                  <Layout size={32} />
                 </div>
                 <div>
-                  <p className="font-medium text-black/60">Seu criativo artístico aparecerá aqui</p>
-                  <p className="text-sm">Escolha um estilo e envie as fotos</p>
+                  <p className="font-medium text-black/60">Seu {activeFormat} aparecerá aqui</p>
+                  <p className="text-sm">Escolha o estilo e envie as fotos</p>
                 </div>
               </div>
             )}
 
             {isGenerating && (
               <div className="h-full min-h-[600px] bg-white rounded-3xl shadow-sm border border-black/5 flex flex-col items-center justify-center p-12 text-center space-y-6 animate-pulse">
-                <div className="w-full aspect-square bg-black/5 rounded-2xl mb-8" />
+                <div className={cn(
+                  "w-full bg-black/5 rounded-2xl mb-8",
+                  activeFormat === 'post' ? "aspect-square" : "aspect-[4/1]"
+                )} />
                 <div className="h-4 w-3/4 bg-black/5 rounded-full" />
                 <div className="h-4 w-1/2 bg-black/5 rounded-full" />
               </div>
@@ -435,7 +475,10 @@ export default function App() {
             {result && !isGenerating && (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
                 <div className="bg-white p-4 rounded-[2rem] shadow-xl border border-black/5">
-                  <div className="relative aspect-square rounded-2xl overflow-hidden bg-black/5 group">
+                  <div className={cn(
+                    "relative rounded-2xl overflow-hidden bg-black/5 group",
+                    activeFormat === 'post' ? "aspect-square" : "aspect-[4/1]"
+                  )}>
                     {result.imageUrl ? (
                       <img 
                         src={result.imageUrl} 
