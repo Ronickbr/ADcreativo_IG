@@ -41,7 +41,7 @@ function cn(...inputs: ClassValue[]) {
 }
 
 type AdStyle = 'realistic' | 'infographic' | 'handlettering' | 'doodle' | 'blueprint' | 'knolling' | 'exploded' | 'anatomy' | 'grunge' | 'cyberpunk' | 'minimalist' | 'vintage' | 'popart' | 'nature' | 'luxury';
-type AdFormat = 'post' | 'banner' | 'stories';
+type AdFormat = 'post' | 'banner' | 'stories' | 'banner_mobile';
 
 interface AdResult {
   headline: string;
@@ -81,7 +81,8 @@ const STYLES = [
 const FORMATS = [
   { id: 'post', name: 'Post Instagram', ratio: '1:1', desc: '1080 x 1080 px' },
   { id: 'stories', name: 'Stories / Reels', ratio: '9:16', desc: '1080 x 1920 px' },
-  { id: 'banner', name: 'Banner Web', ratio: '16:9', desc: '1200 x 675 px' },
+  { id: 'banner', name: 'Banner Web', ratio: '4:1', desc: '1200 x 300 px' },
+  { id: 'banner_mobile', name: 'Banner Mobile', ratio: '4:1', desc: '320 x 100 px' },
 ] as const;
 
 export default function App() {
@@ -90,6 +91,8 @@ export default function App() {
   const [prodImage, setProdImage] = useState<ImageState>({ file: null, preview: null, base64: null });
   const [logoImage, setLogoImage] = useState<ImageState>({ file: null, preview: null, base64: null });
   const [productName, setProductName] = useState('');
+  const [productUrl, setProductUrl] = useState('');
+  const [isFetchingProduct, setIsFetchingProduct] = useState(false);
   const [techData, setTechData] = useState('');
   const [selectedStyle, setSelectedStyle] = useState<AdStyle>('realistic');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -101,55 +104,91 @@ export default function App() {
   const [openRouterKey, setOpenRouterKey] = useState(() => localStorage.getItem('openRouterKey') || '');
   const [useOpenRouter, setUseOpenRouter] = useState(() => localStorage.getItem('useOpenRouter') === 'true');
 
-  const bgInputRef = useRef<HTMLInputElement>(null);
-  const prodInputRef = useRef<HTMLInputElement>(null);
-  const logoInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'bg' | 'prod' | 'logo') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Check file size (limit to 4MB for better reliability)
-    if (file.size > 4 * 1024 * 1024) {
-      setError('A imagem é muito grande. Por favor, use arquivos menores que 4MB.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = (reader.result as string).split(',')[1];
-      const preview = reader.result as string;
-      const state = { file, preview, base64 };
-      if (type === 'bg') setBgImage(state);
-      else if (type === 'prod') setProdImage(state);
-      else setLogoImage(state);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const clearImage = (type: 'bg' | 'prod' | 'logo') => {
-    if (type === 'bg') setBgImage({ file: null, preview: null, base64: null });
-    else if (type === 'prod') setProdImage({ file: null, preview: null, base64: null });
-    else setLogoImage({ file: null, preview: null, base64: null });
-  };
-
   const handleSaveSettings = () => {
     localStorage.setItem('openRouterKey', openRouterKey);
     localStorage.setItem('useOpenRouter', String(useOpenRouter));
     setShowSettings(false);
   };
 
+  const handleDownload = () => {
+    if (!result?.imageUrl) return;
+    const link = document.createElement('a');
+    link.href = result.imageUrl;
+    link.download = `criativo-${productName.toLowerCase().replace(/\s+/g, '-') || 'ads'}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleShare = async () => {
+    if (!result?.imageUrl) return;
+    try {
+      if (navigator.share) {
+        const response = await fetch(result.imageUrl);
+        const blob = await response.blob();
+        const file = new File([blob], 'criativo.png', { type: 'image/png' });
+        
+        await navigator.share({
+          title: result.headline,
+          text: result.caption,
+          files: [file],
+        });
+      } else {
+        // Fallback to clipboard
+        await navigator.clipboard.writeText(result.imageUrl);
+        alert('Link da imagem copiado para a área de transferência!');
+      }
+    } catch (err) {
+      console.error('Error sharing:', err);
+      // Fallback if sharing files is not supported
+      await navigator.clipboard.writeText(result.imageUrl);
+      alert('Link da imagem copiado para a área de transferência!');
+    }
+  };
+
+  const handleFetchProduct = async () => {
+    if (!productUrl) return;
+    setIsFetchingProduct(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: productUrl }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Falha ao buscar informações do produto. Verifique o link.');
+      }
+      
+      const data = await response.json();
+      if (data.title) setProductName(data.title);
+      if (data.description) setTechData(data.description);
+      if (data.base64Image) {
+        setProdImage({
+          file: new File([], 'product.png', { type: data.mimeType || 'image/png' }),
+          preview: `data:${data.mimeType || 'image/png'};base64,${data.base64Image}`,
+          base64: data.base64Image
+        });
+      }
+    } catch (err: any) {
+      setError(err.message || 'Erro ao buscar informações do produto.');
+    } finally {
+      setIsFetchingProduct(false);
+    }
+  };
+
   const generateWithOpenRouter = async (prompt: string, images: { mimeType: string, data: string }[]) => {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${openRouterKey}`,
+        "Authorization": `Bearer ${openRouterKey.trim()}`,
         "HTTP-Referer": window.location.origin,
         "X-Title": "AdCreative AI",
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        "model": "google/gemini-3-flash-preview", 
+        "model": "google/gemini-2.0-flash-001", 
         "messages": [
           {
             "role": "user",
@@ -188,24 +227,32 @@ export default function App() {
     setError(null);
 
     try {
+      // Ensure API key is selected for Gemini 3.1 models
+      if (typeof window !== 'undefined' && (window as any).aistudio) {
+        const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+        if (!hasKey) {
+          await (window as any).aistudio.openSelectKey();
+        }
+      }
+
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const stylePrompt = {
-        realistic: "Realista, composição de estúdio fotográfico",
-        infographic: "Infográfico ilustrado, com ícones, setas e elementos gráficos informativos",
-        handlettering: "Hand-lettering digital, tipografia artística feita à mão, estilo caligráfico moderno",
-        doodle: "Doodle art, estilo sketch/rascunho, desenhos divertidos ao redor do produto",
-        blueprint: "Blueprint técnico, desenho de engenharia em fundo azul ciano com linhas brancas e medidas",
-        knolling: "Estilo Knolling, organização simétrica e ortogonal de componentes do produto em uma superfície plana",
-        exploded: "Vista explodida (Exploded View), mostrando as partes internas e componentes do produto flutuando em ordem de montagem",
-        anatomy: "Anatomia do produto, com rótulos detalhados apontando para partes específicas e explicando funções",
-        grunge: "Estilo Grunge e Colagem (Mixed Media), texturas urbanas, recortes de jornal, elementos sobrepostos e visual artístico rebelde",
-        cyberpunk: "Estilo Cyberpunk, luzes neon (azul, rosa, roxo), ambiente futurista noturno, alta tecnologia e visual vibrante",
-        minimalist: "Estilo Minimalista, fundo limpo com cores pastéis ou neutras, sombras suaves, foco total no produto e muito espaço negativo",
-        vintage: "Estilo Vintage/Retrô, estética dos anos 70/80, cores levemente desbotadas, textura de filme granulado e visual nostálgico",
-        popart: "Estilo Pop Art, cores vibrantes e contrastantes, estilo história em quadrinhos, pontos Ben-Day e visual gráfico ousado",
-        nature: "Estilo Natureza/Orgânico, muitos elementos naturais como plantas, luz solar filtrada, texturas de madeira ou pedra",
-        luxury: "Estilo Luxo/Premium, detalhes em ouro ou prata, tecidos nobres como veludo ou seda, iluminação dramática e elegante"
+        realistic: "Realistic, professional studio photography, softbox lighting, 85mm lens, f/2.8, sharp focus",
+        infographic: "Infographic style, technical illustrations, clean vector icons, data callouts, professional layout",
+        handlettering: "Hand-lettering, artistic custom typography, modern calligraphy, creative script",
+        doodle: "Doodle art, creative hand-drawn sketches, playful illustrations around the product",
+        blueprint: "Technical blueprint, engineering drawing, cyan background, white schematic lines, measurements",
+        knolling: "Knolling composition, organized top-down flat lay view, symmetrical arrangement of parts",
+        exploded: "Exploded view, cross-section view, internal engineering components, floating parts in assembly order",
+        anatomy: "Product anatomy, detailed cross-section, internal components with professional callouts and labels",
+        grunge: "Grunge and Mixed Media collage, urban textures, paper tears, layered artistic elements",
+        cyberpunk: "Cyberpunk aesthetic, neon teal and orange highlights, cinematic urban fog, high contrast, futuristic atmosphere",
+        minimalist: "Minimalist style, clean background, soft shadows, elegant negative space, focus on form",
+        vintage: "Vintage 1970s style, film grain, muted Kodak colors, nostalgic atmosphere, retro aesthetic",
+        popart: "Pop Art style, bold halftone patterns, comic book aesthetics, high contrast vibrant colors",
+        nature: "Nature-inspired, organic elements, plants, natural sunlight, wood and stone textures",
+        luxury: "Luxury aesthetic, Chiaroscuro lighting, premium materials like gold and marble, sophisticated atmosphere"
       }[selectedStyle];
 
       const formatDetails = FORMATS.find(f => f.id === activeFormat)!;
@@ -220,8 +267,12 @@ export default function App() {
         copyParts.push({ inlineData: { mimeType: bgImage.file!.type, data: bgImage.base64 } });
         imagesForOpenRouter.push({ mimeType: bgImage.file!.type, data: bgImage.base64 });
       }
-      copyParts.push({ inlineData: { mimeType: prodImage.file!.type, data: prodImage.base64 } });
-      imagesForOpenRouter.push({ mimeType: prodImage.file!.type, data: prodImage.base64 });
+      
+      if (prodImage.base64) {
+        const mimeType = prodImage.file?.type || 'image/png';
+        copyParts.push({ inlineData: { mimeType, data: prodImage.base64 } });
+        imagesForOpenRouter.push({ mimeType, data: prodImage.base64 });
+      }
       
       if (logoImage.base64) {
         copyParts.push({ inlineData: { mimeType: logoImage.file!.type, data: logoImage.base64 } });
@@ -229,44 +280,52 @@ export default function App() {
       }
       
       const promptText = `
-        Você é um Especialista em Social Media Ads. Analise a imagem do PRODUTO acima.
-        ${bgImage.base64 ? 'Considere também a imagem de BACKGROUND fornecida como cenário base.' : 'NÃO foi fornecida uma imagem de fundo. Você deve descrever um cenário ideal que combine perfeitamente com o produto e o estilo escolhido.'}
-        ${logoImage.base64 ? 'Foi fornecida uma imagem de LOGO da empresa. Ela deve ser incorporada discretamente na arte final.' : ''}
+        ROLE: Você é o motor de inteligência de vendas e direção de arte do AdCreative AI. Sua missão é transformar inputs técnicos e simples em campanhas multimodais de alta conversão.
         
-        NOME DO PRODUTO: ${productName}
-        DADOS TÉCNICOS: ${techData || 'Não fornecidos'}
-        ESTILO VISUAL DESEJADO: ${stylePrompt}
-        FORMATO: ${formatDetails.name} (${formatDetails.desc})
+        INPUTS:
+        - PRODUTO: ${productName}
+        - DADOS TÉCNICOS: ${techData || 'Não fornecidos'}
+        - ESTILO SELECIONADO: ${selectedStyle} (${stylePrompt})
+        - FORMATO: ${formatDetails.name} (${formatDetails.desc})
         
-        OBJETIVO:
-        Criar a estratégia de copy e visual para um ${formatDetails.name} no estilo ${selectedStyle}.
+        LÓGICA DE EXECUÇÃO:
+        1. FILTRO DE BENEFÍCIOS: Aplique o teste "So What?". Para cada dado técnico, extraia uma vantagem funcional e um benefício emocional.
+        2. SELEÇÃO DE FRAMEWORK:
+           - Se o produto resolve uma dor: Use PAS (Problema, Agitação, Solução).
+           - Se o produto é desejo/estilo: Use AIDA (Atenção, Interesse, Desejo, Ação).
+           - Se o produto é técnico/inovador: Use BAB (Before, After, Bridge).
         
-        DIRETRIZES:
-        - Headline impactante condizente com o estilo ${selectedStyle} e o formato ${activeFormat}.
-        - Transforme dados técnicos em benefícios.
-        ${activeFormat === 'post' ? '- Crie uma legenda com hashtags.' : '- NÃO é necessário legenda nem hashtags para banners.'}
-        - Descreva exatamente como o produto deve ser integrado ao cenário usando o estilo ${selectedStyle}.
-        ${activeFormat === 'banner' ? '- Para banners, os benefícios (destaques) DEVEM ser incorporados visualmente na própria imagem.' : ''}
+        DIRETRIZES DE OUTPUT:
+        - Headline: Gancho magnético de até 12 palavras.
+        - Body Copy: Texto estruturado no framework escolhido, focado no benefício emocional.
+        - Visual Description: Crie um prompt detalhado em INGLÊS para geração de imagem seguindo:
+          - Sujeito: Descrição fotorrealista do produto com foco em materialidade.
+          - Lighting Setup: Traduza o estilo em técnica (ex: Luxo = Chiaroscuro).
+          - Lens & Cam: Use especificações reais (ex: 85mm, f/2.8).
+          - Composição: Técnica visual correspondente (ex: Knolling = top-down flat lay).
+          - Environment: Crie um cenário imersivo e detalhado que complemente o produto. NUNCA use fundo branco ou plano. O fundo deve ter profundidade, texturas e elementos que contextualizem o uso do produto de forma realista e atraente.
         
         Responda estritamente em JSON:
         {
-          "headline": "Título",
-          "benefits": ["b1", "b2", "b3"],
-          "cta": "CTA",
-          "caption": "${activeFormat === 'post' ? 'Legenda' : ''}",
-          "hashtags": [${activeFormat === 'post' ? '"#tag1", "#tag2"' : ''}],
-          "visualDescription": "Instruções detalhadas de composição visual para o estilo ${selectedStyle} no formato ${activeFormat}. Se não houver fundo, descreva o cenário a ser gerado.",
-          "backgroundKeywords": "3 a 5 palavras-chave em inglês para buscar um cenário real no Unsplash (ex: luxury office, modern kitchen, tropical beach)"
+          "headline": "Título magnético",
+          "benefits": ["Benefício Emocional 1", "Benefício Emocional 2", "Benefício Emocional 3"],
+          "cta": "Chamada clara e urgente",
+          "caption": "Legenda persuasiva para redes sociais (se post)",
+          "hashtags": ["#tag1", "#tag2"],
+          "visualDescription": "PROMPT EM INGLÊS DETALHADO PARA O GERADOR DE IMAGEM",
+          "backgroundKeywords": "3 a 5 keywords em inglês para busca de cenário"
         }
       `;
 
       let adData;
-      if (useOpenRouter && openRouterKey) {
+      if (useOpenRouter && openRouterKey.trim()) {
+        console.log('Using OpenRouter for copy generation...');
         const openRouterResponse = await generateWithOpenRouter(promptText, imagesForOpenRouter);
         adData = JSON.parse(openRouterResponse);
       } else {
+        console.log('Using Gemini directly for copy generation...');
         const copyResponse = await ai.models.generateContent({
-          model: "gemini-3.1-pro-preview",
+          model: "gemini-3-flash-preview",
           contents: [{ role: 'user', parts: [...copyParts, { text: promptText }] }],
           config: {
             responseMimeType: "application/json",
@@ -293,26 +352,31 @@ export default function App() {
       let finalBgMime = bgImage.file?.type || 'image/jpeg';
 
       if (!finalBgBase64 && adData.backgroundKeywords) {
-        setGenerationStep('Buscando cenário real no Unsplash...');
+        setGenerationStep('Buscando cenário real...');
         try {
           const keywords = encodeURIComponent(adData.backgroundKeywords);
           const [width, height] = formatDetails.ratio.split(':').map(Number);
           const w = width > height ? 1200 : 1080;
           const h = Math.round(w * (height / width));
           
-          // Using a reliable public image service that doesn't require API keys for simple keyword search
-          const unsplashUrl = `https://loremflickr.com/${w}/${h}/${keywords}`;
-          const imgRes = await fetch(unsplashUrl);
+          // Using a more reliable way to fetch images that might have CORS issues
+          // We try to fetch from a service that is generally more permissive
+          const imageUrl = `https://loremflickr.com/${w}/${h}/${keywords}`;
+          
+          const imgRes = await fetch(imageUrl, { cache: 'no-cache' });
+          if (!imgRes.ok) throw new Error('Failed to fetch image');
           const blob = await imgRes.blob();
           
           const reader = new FileReader();
-          finalBgBase64 = await new Promise((resolve) => {
+          finalBgBase64 = await new Promise((resolve, reject) => {
             reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror = reject;
             reader.readAsDataURL(blob);
           });
           finalBgMime = blob.type;
         } catch (err) {
-          console.warn('Failed to fetch Unsplash image, falling back to AI generation:', err);
+          // Silent fallback to AI generation to avoid cluttering the UI with warnings
+          console.log('Background fetch failed, will use AI generation instead.');
         }
       }
 
@@ -323,77 +387,91 @@ export default function App() {
       if (finalBgBase64) {
         imageParts.push({ inlineData: { mimeType: finalBgMime, data: finalBgBase64 } });
       }
-      imageParts.push({ inlineData: { mimeType: prodImage.file!.type, data: prodImage.base64 } });
       
-      if (logoImage.base64) {
-        imageParts.push({ inlineData: { mimeType: logoImage.file!.type, data: logoImage.base64 } });
+      if (prodImage.base64) {
+        imageParts.push({ inlineData: { mimeType: prodImage.file?.type || 'image/png', data: prodImage.base64 } });
       }
       
-      const visualPrompt = `Professional ${formatDetails.name} advertisement in ${stylePrompt} style. 
-        Aspect ratio is ${formatDetails.ratio}.
+      if (logoImage.base64) {
+        imageParts.push({ inlineData: { mimeType: logoImage.file?.type || 'image/png', data: logoImage.base64 } });
+      }
+      
+      const visualPrompt = `Professional ${formatDetails.name} advertisement. 
+        Aspect ratio: ${formatDetails.ratio}.
+        Style: ${stylePrompt}.
         
-        COMPOSITION:
-        ${finalBgBase64 ? 'Integrate the product from the second image into the background of the first image.' : 'Create a professional background for the product based on the visual strategy.'}
-        ${logoImage.base64 ? 'Place the company logo (from the third image) in a professional position, usually a corner.' : ''}
-        Visual Strategy: ${adData.visualDescription}.
+        IMAGE GENERATION PROMPT:
+        ${adData.visualDescription}
         
-        TEXT RENDERING (CRITICAL):
-        You MUST render the following text elements directly on the image with professional typography:
-        1. HEADLINE: "${adData.headline}" - Large, impactful, positioned at the top or center-top.
-        2. BENEFITS: ${adData.benefits.map(b => `• ${b}`).join(' ')} - Smaller text, positioned clearly.
-        3. CTA BUTTON: A professional button with the text "${adData.cta}" at the bottom.
+        COMPOSITION & INTEGRATION:
+        ${finalBgBase64 ? 'Seamlessly integrate the product from the second image into the background of the first image.' : 'CRITICAL: Create a complete, immersive, and detailed environment as described in the prompt above. DO NOT use a plain white or solid color background. The background must have depth, realistic textures, and environmental details that make the product pop.'}
+        ${logoImage.base64 ? 'Discreetly place the company logo (from the third image) in a professional position (corner).' : ''}
         
-        STYLE DETAILS:
-        ${selectedStyle === 'infographic' ? 'Add illustrated arrows and tech labels.' : ''}
-        ${selectedStyle === 'handlettering' ? 'Use artistic hand-drawn typography for the text.' : ''}
-        ${selectedStyle === 'doodle' ? 'Add creative hand-drawn doodles and sketches around the product.' : ''}
-        ${selectedStyle === 'blueprint' ? 'Transform the image into a technical blueprint with cyan background and white schematic lines.' : ''}
-        ${selectedStyle === 'knolling' ? 'Arrange product parts in a neat, symmetrical grid on a clean surface.' : ''}
-        ${selectedStyle === 'exploded' ? 'Show the product disassembled with parts floating in space.' : ''}
-        ${selectedStyle === 'anatomy' ? 'Add anatomical callouts and labels explaining the internal components.' : ''}
-        ${selectedStyle === 'grunge' ? 'Apply mixed media collage textures, paper tears, and urban grunge filters.' : ''}
-        ${selectedStyle === 'cyberpunk' ? 'Add neon lights, futuristic UI elements, and high-tech atmosphere.' : ''}
-        ${selectedStyle === 'minimalist' ? 'Keep it extremely clean, soft shadows, and elegant negative space.' : ''}
-        ${selectedStyle === 'vintage' ? 'Apply retro film grain, warm nostalgic colors, and vintage textures.' : ''}
-        ${selectedStyle === 'popart' ? 'Use bold halftone patterns, comic book speech bubbles, and high contrast colors.' : ''}
-        ${selectedStyle === 'nature' ? 'Surround with organic elements like leaves, water, or natural sunlight.' : ''}
-        ${selectedStyle === 'luxury' ? 'Add premium textures like marble, gold, or velvet with high-end lighting.' : ''}
+        TEXT RENDERING (MANDATORY):
+        Render these elements with professional typography:
+        1. HEADLINE: "${adData.headline}" - Large, impactful, top/center-top.
+        2. BENEFITS: ${adData.benefits.map(b => `• ${b}`).join(' ')} - Clear, legible.
+        3. CTA BUTTON: "${adData.cta}" - Bottom center.
         
-        Maintain high resolution, premium e-commerce aesthetic. Ensure all text is perfectly legible and well-integrated into the design.`;
+        Final image must be high-resolution, premium e-commerce quality, with all text perfectly legible.`;
 
+      const isBanner = activeFormat === 'banner';
+      const imageModel = isBanner ? 'gemini-3.1-flash-image-preview' : 'gemini-2.5-flash-image';
+      
       const imageResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
+        model: imageModel,
         contents: { parts: [...imageParts, { text: visualPrompt }] },
         config: {
           imageConfig: {
             aspectRatio: formatDetails.ratio as any,
+            ...(isBanner ? { imageSize: "1K" } : {})
           },
         },
       });
 
       let imageUrl = '';
-      for (const part of imageResponse.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          imageUrl = `data:image/png;base64,${part.inlineData.data}`;
-          break;
+      const candidate = imageResponse.candidates?.[0];
+      
+      if (candidate?.content?.parts) {
+        for (const part of candidate.content.parts) {
+          if (part.inlineData) {
+            imageUrl = `data:image/png;base64,${part.inlineData.data}`;
+            break;
+          }
         }
       }
 
       if (!imageUrl) {
-        throw new Error('Não foi possível gerar a imagem final. Tente novamente.');
+        const finishReason = candidate?.finishReason;
+        if (finishReason === 'SAFETY') {
+          throw new Error('A geração foi bloqueada pelos filtros de segurança. Tente mudar o produto ou o estilo.');
+        }
+        throw new Error('O modelo não retornou uma imagem. Tente novamente com um estilo diferente ou menos texto.');
       }
 
       setResult({ ...adData, imageUrl });
     } catch (err: any) {
       console.error('Generation Error:', err);
       
+      const errorStr = JSON.stringify(err);
       const errorMessage = err.message || '';
-      if (errorMessage.includes('429') || JSON.stringify(err).includes('RESOURCE_EXHAUSTED')) {
-        setError('Limite de uso atingido. Aguarde um minuto e tente novamente.');
+      
+      if (errorMessage.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED') || errorStr.includes('429')) {
+        setError('Limite de Uso Atingido (Erro 429): O Google Gemini gratuito tem um limite de requisições por minuto. Ação: Aguarde cerca de 60 segundos e clique em "Gerar Criativo" novamente. Se o erro persistir, considere usar uma chave de API paga.');
+      } else if (errorMessage.includes('403') || errorStr.includes('PERMISSION_DENIED')) {
+        setError('Acesso Negado (Erro 403): Sua chave de API não tem permissão para este modelo avançado ou o faturamento não está ativo. Ação: Clique no ícone de engrenagem (Configurações) e selecione uma chave de um "Projeto Pago" (Paid Project) no Google Cloud. Certifique-se de que o faturamento está habilitado em console.cloud.google.com.');
+        // Prompt user to select key again if permission is denied
+        if (typeof window !== 'undefined' && (window as any).aistudio) {
+          (window as any).aistudio.openSelectKey();
+        }
       } else if (errorMessage.includes('imageConfig.aspectRatio')) {
-        setError('O formato selecionado não é suportado pelo modelo atual. Tente o formato Post.');
+        setError('Formato não suportado: O tamanho selecionado não é compatível com o modelo de imagem atual. Ação: Tente usar o formato "Post (1:1)" ou mude o estilo visual para algo mais simples.');
+      } else if (errorStr.includes('SAFETY') || errorMessage.includes('SAFETY')) {
+        setError('Conteúdo Bloqueado por Segurança: Nossos filtros identificaram algo sensível na imagem ou no texto. Ação: Tente usar uma foto diferente do produto, remova termos sensíveis da descrição ou mude o estilo para "Minimalist".');
+      } else if (errorMessage.includes('OpenRouter')) {
+        setError(`Erro no OpenRouter: ${errorMessage}. Ação: Verifique se sua chave do OpenRouter é válida e se você tem créditos suficientes.`);
       } else {
-        setError(`Erro: ${errorMessage || 'Falha na geração do criativo. Tente usar imagens menores ou outro estilo.'}`);
+        setError(`Ops! Algo deu errado: ${errorMessage || 'Falha ao processar as imagens.'} Ação: Verifique sua conexão, se as fotos não são muito pesadas (use arquivos menores que 2MB) ou tente usar um estilo diferente.`);
       }
     } finally {
       setIsGenerating(false);
@@ -546,6 +624,66 @@ export default function App() {
             </div>
 
             <div className="space-y-6 bg-white p-8 rounded-3xl shadow-sm border border-black/5">
+              {/* Product URL Input */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
+                  <Globe size={14} /> Link do Produto
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="Cole o link do produto aqui..."
+                    className="flex-1 bg-[#F9F9F9] border border-black/5 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
+                    value={productUrl}
+                    onChange={(e) => setProductUrl(e.target.value)}
+                  />
+                  <button
+                    onClick={handleFetchProduct}
+                    disabled={isFetchingProduct || !productUrl}
+                    className={cn(
+                      "px-6 rounded-xl font-semibold transition-all flex items-center gap-2",
+                      isFetchingProduct || !productUrl
+                        ? "bg-black/5 text-black/20 cursor-not-allowed"
+                        : "bg-[#5A5A40] text-white hover:bg-[#4A4A30]"
+                    )}
+                  >
+                    {isFetchingProduct ? <Loader2 className="animate-spin" size={18} /> : <Zap size={18} />}
+                    {isFetchingProduct ? 'Buscando...' : 'Buscar'}
+                  </button>
+                </div>
+                <p className="text-[10px] text-black/40">
+                  Buscaremos automaticamente a imagem, nome e descrição do produto.
+                </p>
+              </div>
+
+              {/* Product Preview */}
+              {prodImage.preview && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 bg-[#F9F9F9] rounded-2xl border border-black/5 flex gap-4 items-center"
+                >
+                  <div className="w-20 h-20 rounded-xl overflow-hidden border border-black/5 bg-white shrink-0">
+                    <img src={prodImage.preview} className="w-full h-full object-cover" alt="Product Preview" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-bold truncate">{productName || 'Produto Detectado'}</h4>
+                    <p className="text-[10px] text-black/40 line-clamp-2 mt-1">{techData || 'Descrição detectada...'}</p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setProdImage({ file: null, preview: null, base64: null });
+                      setProductName('');
+                      setTechData('');
+                      setProductUrl('');
+                    }}
+                    className="p-2 hover:bg-black/5 rounded-full transition-colors text-black/40"
+                  >
+                    <X size={16} />
+                  </button>
+                </motion.div>
+              )}
+
               {/* Style Selector */}
               <div className="space-y-3">
                 <label className="text-xs font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
@@ -568,137 +706,6 @@ export default function App() {
                     </button>
                   ))}
                 </div>
-              </div>
-
-              {/* Image Uploaders */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-3">
-                  <label className="text-xs font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
-                    <ImageIcon size={14} /> Background (Opcional)
-                  </label>
-                  <div 
-                    onClick={() => bgInputRef.current?.click()}
-                    className={cn(
-                      "aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden relative group",
-                      bgImage.preview ? "border-transparent" : "border-black/10 hover:border-[#5A5A40]/40 hover:bg-[#F9F9F9]"
-                    )}
-                  >
-                    {bgImage.preview ? (
-                      <>
-                        <img src={bgImage.preview} className="w-full h-full object-cover" alt="BG Preview" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Upload className="text-white" size={24} />
-                        </div>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); clearImage('bg'); }}
-                          className="absolute top-2 right-2 p-1 bg-white/90 rounded-full shadow-sm hover:bg-white"
-                        >
-                          <X size={14} />
-                        </button>
-                      </>
-                    ) : (
-                      <div className="text-center p-4">
-                        <Upload className="mx-auto text-black/20 mb-2" size={24} />
-                        <p className="text-[10px] font-bold text-black/40 uppercase">Cenário Real</p>
-                        <p className="text-[8px] text-black/30 mt-1">Vazio = Busca Unsplash</p>
-                      </div>
-                    )}
-                    <input type="file" ref={bgInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'bg')} />
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-xs font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
-                    <Camera size={14} /> Produto
-                  </label>
-                  <div 
-                    onClick={() => prodInputRef.current?.click()}
-                    className={cn(
-                      "aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden relative group",
-                      prodImage.preview ? "border-transparent" : "border-black/10 hover:border-[#5A5A40]/40 hover:bg-[#F9F9F9]"
-                    )}
-                  >
-                    {prodImage.preview ? (
-                      <>
-                        <img src={prodImage.preview} className="w-full h-full object-cover" alt="Prod Preview" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Upload className="text-white" size={24} />
-                        </div>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); clearImage('prod'); }}
-                          className="absolute top-2 right-2 p-1 bg-white/90 rounded-full shadow-sm hover:bg-white"
-                        >
-                          <X size={14} />
-                        </button>
-                      </>
-                    ) : (
-                      <div className="text-center p-4">
-                        <Upload className="mx-auto text-black/20 mb-2" size={24} />
-                        <p className="text-[10px] font-bold text-black/40 uppercase">Equipamento</p>
-                      </div>
-                    )}
-                    <input type="file" ref={prodInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'prod')} />
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-xs font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
-                    <Building size={14} /> Logo Empresa (Opcional)
-                  </label>
-                  <div 
-                    onClick={() => logoInputRef.current?.click()}
-                    className={cn(
-                      "aspect-square rounded-2xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden relative group",
-                      logoImage.preview ? "border-transparent" : "border-black/10 hover:border-[#5A5A40]/40 hover:bg-[#F9F9F9]"
-                    )}
-                  >
-                    {logoImage.preview ? (
-                      <>
-                        <img src={logoImage.preview} className="w-full h-full object-cover" alt="Logo Preview" />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Upload className="text-white" size={24} />
-                        </div>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); clearImage('logo'); }}
-                          className="absolute top-2 right-2 p-1 bg-white/90 rounded-full shadow-sm hover:bg-white"
-                        >
-                          <X size={14} />
-                        </button>
-                      </>
-                    ) : (
-                      <div className="text-center p-4">
-                        <Upload className="mx-auto text-black/20 mb-2" size={24} />
-                        <p className="text-[10px] font-bold text-black/40 uppercase">Sua Logo</p>
-                      </div>
-                    )}
-                    <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={(e) => handleFileChange(e, 'logo')} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-xs font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
-                  <TypeIcon size={14} /> Nome do Produto
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ex: Furadeira de Impacto Profissional"
-                  className="w-full bg-[#F9F9F9] border border-black/5 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
-                  value={productName}
-                  onChange={(e) => setProductName(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-3">
-                <label className="text-xs font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
-                  <FileText size={14} /> Dados Técnicos
-                </label>
-                <textarea
-                  placeholder="Ex: Motor brushless, 2500 RPM..."
-                  className="w-full bg-[#F9F9F9] border border-black/5 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all min-h-[80px] resize-none"
-                  value={techData}
-                  onChange={(e) => setTechData(e.target.value)}
-                />
               </div>
 
               {error && (
@@ -751,7 +758,9 @@ export default function App() {
               <div className="h-full min-h-[600px] bg-white rounded-3xl shadow-sm border border-black/5 flex flex-col items-center justify-center p-12 text-center space-y-6 animate-pulse">
                 <div className={cn(
                   "w-full bg-black/5 rounded-2xl mb-8",
-                  activeFormat === 'post' ? "aspect-square" : "aspect-video"
+                  activeFormat === 'post' ? "aspect-square" : 
+                  activeFormat === 'stories' ? "aspect-[9/16]" : 
+                  activeFormat === 'banner' ? "aspect-[4/1]" : "aspect-[3.2/1]"
                 )} />
                 <div className="flex flex-col items-center gap-4 w-full">
                   <div className="h-4 w-3/4 bg-black/5 rounded-full" />
@@ -766,7 +775,9 @@ export default function App() {
                 <div className="bg-white p-4 rounded-[2rem] shadow-xl border border-black/5">
                   <div className={cn(
                     "relative rounded-2xl overflow-hidden bg-black/5 group",
-                    activeFormat === 'post' ? "aspect-square" : "aspect-video"
+                    activeFormat === 'post' ? "aspect-square" : 
+                    activeFormat === 'stories' ? "aspect-[9/16]" : 
+                    activeFormat === 'banner' ? "aspect-[4/1]" : "aspect-[3.2/1]"
                   )}>
                     {result.imageUrl ? (
                       <img 
@@ -784,10 +795,18 @@ export default function App() {
                   
                   <div className="p-6 flex items-center justify-between">
                     <div className="flex gap-2">
-                      <button className="p-2 hover:bg-black/5 rounded-lg transition-colors text-black/60">
+                      <button 
+                        onClick={handleDownload}
+                        className="p-2 hover:bg-black/5 rounded-lg transition-colors text-black/60"
+                        title="Baixar Imagem"
+                      >
                         <Download size={20} />
                       </button>
-                      <button className="p-2 hover:bg-black/5 rounded-lg transition-colors text-black/60">
+                      <button 
+                        onClick={handleShare}
+                        className="p-2 hover:bg-black/5 rounded-lg transition-colors text-black/60"
+                        title="Compartilhar"
+                      >
                         <Share2 size={20} />
                       </button>
                     </div>
@@ -807,7 +826,7 @@ export default function App() {
                   </div>
 
                   <div className="space-y-3">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-black/40">Destaques</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-black/40">Destaques (Benefícios Emocionais)</h3>
                     <ul className="space-y-2">
                       {result.benefits.map((benefit, i) => (
                         <li key={i} className="flex items-start gap-3 text-sm text-black/70">
@@ -818,19 +837,26 @@ export default function App() {
                     </ul>
                   </div>
 
-                  {activeFormat === 'post' && (
-                    <div className="space-y-2">
-                      <h3 className="text-xs font-bold uppercase tracking-widest text-black/40">Legenda e Hashtags</h3>
-                      <div className="bg-[#F9F9F9] p-4 rounded-xl text-sm text-black/80 whitespace-pre-wrap italic">
-                        {result.caption}
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-black/40">Copy Estruturada</h3>
+                    <div className="bg-[#F9F9F9] p-4 rounded-xl text-sm text-black/80 whitespace-pre-wrap italic">
+                      {result.caption}
+                      {activeFormat === 'post' && result.hashtags.length > 0 && (
                         <div className="mt-4 flex flex-wrap gap-2">
                           {result.hashtags.map((tag, i) => (
                             <span key={i} className="text-[#5A5A40] font-bold">{tag}</span>
                           ))}
                         </div>
-                      </div>
+                      )}
                     </div>
-                  )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-black/40">Chamada para Ação (CTA)</h3>
+                    <div className="bg-[#5A5A40] text-white p-3 rounded-xl text-center font-bold text-sm">
+                      {result.cta}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
