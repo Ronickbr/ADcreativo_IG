@@ -30,6 +30,10 @@ import {
   Crown,
   Settings,
   Globe,
+  CreditCard,
+  Percent,
+  Banknote,
+  Tag,
   Building,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -60,6 +64,16 @@ interface ImageState {
   base64: string | null;
 }
 
+interface ProductData {
+  id: string;
+  image: ImageState;
+  name: string;
+  url: string;
+  techData: string;
+  price: string;
+  badge: 'a_vista' | '12x' | 'promo' | 'none';
+}
+
 const STYLES = [
   { 
     id: 'gastronomia_premium', 
@@ -80,19 +94,24 @@ const STYLES = [
 const FORMATS = [
   { id: 'post', name: 'Post Instagram', ratio: '1:1', desc: '1080 x 1080 px' },
   { id: 'stories', name: 'Stories / Reels', ratio: '9:16', desc: '1080 x 1920 px' },
-  { id: 'banner', name: 'Banner Web', ratio: '4:1', desc: '1200 x 300 px' },
-  { id: 'banner_mobile', name: 'Banner Mobile', ratio: '4:1', desc: '320 x 100 px' },
+  { id: 'banner', name: 'Banner Web', ratio: '144:41', desc: '1440 x 410 px' },
+  { id: 'banner_mobile', name: 'Banner Mobile', ratio: '3.2:1', desc: '320 x 100 px' },
 ] as const;
 
 export default function App() {
   const [activeFormat, setActiveFormat] = useState<AdFormat>('post');
   const [bgImage, setBgImage] = useState<ImageState>({ file: null, preview: null, base64: null });
-  const [prodImage, setProdImage] = useState<ImageState>({ file: null, preview: null, base64: null });
+  const [products, setProducts] = useState<ProductData[]>([{
+    id: '1',
+    image: { file: null, preview: null, base64: null },
+    name: '',
+    url: '',
+    techData: '',
+    price: '',
+    badge: 'none'
+  }]);
   const [logoImage, setLogoImage] = useState<ImageState>({ file: null, preview: null, base64: null });
-  const [productName, setProductName] = useState('');
-  const [productUrl, setProductUrl] = useState('');
-  const [isFetchingProduct, setIsFetchingProduct] = useState(false);
-  const [techData, setTechData] = useState('');
+  const [isFetchingIndex, setIsFetchingIndex] = useState<number | null>(null);
   const [selectedStyle, setSelectedStyle] = useState<AdStyle>('gastronomia_premium');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<string>('');
@@ -115,7 +134,7 @@ export default function App() {
     if (!result?.imageUrl) return;
     const link = document.createElement('a');
     link.href = result.imageUrl;
-    link.download = `criativo-${productName.toLowerCase().replace(/\s+/g, '-') || 'ads'}.png`;
+    link.download = `criativo-${products[0]?.name.toLowerCase().replace(/\s+/g, '-') || 'ads'}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -147,15 +166,16 @@ export default function App() {
     }
   };
 
-  const handleFetchProduct = async () => {
-    if (!productUrl) return;
-    setIsFetchingProduct(true);
+  const handleFetchProduct = async (index: number) => {
+    const product = products[index];
+    if (!product.url) return;
+    setIsFetchingIndex(index);
     setError(null);
     try {
       const response = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: productUrl }),
+        body: JSON.stringify({ url: product.url }),
       });
       
       if (!response.ok) {
@@ -163,20 +183,47 @@ export default function App() {
       }
       
       const data = await response.json();
-      if (data.title) setProductName(data.title);
-      if (data.description) setTechData(data.description);
-      if (data.base64Image) {
-        setProdImage({
-          file: new File([], 'product.png', { type: data.mimeType || 'image/png' }),
-          preview: `data:${data.mimeType || 'image/png'};base64,${data.base64Image}`,
-          base64: data.base64Image
-        });
-      }
+      
+      setProducts(prev => prev.map((p, i) => {
+        if (i !== index) return p;
+        return {
+          ...p,
+          name: data.title || p.name,
+          techData: data.description || p.techData,
+          image: data.base64Image ? {
+            file: new File([], 'product.png', { type: data.mimeType || 'image/png' }),
+            preview: `data:${data.mimeType || 'image/png'};base64,${data.base64Image}`,
+            base64: data.base64Image
+          } : p.image
+        };
+      }));
     } catch (err: any) {
       setError(err.message || 'Erro ao buscar informações do produto.');
     } finally {
-      setIsFetchingProduct(false);
+      setIsFetchingIndex(null);
     }
+  };
+
+  const addProduct = () => {
+    if (products.length >= 2) return; // Limit to 2 for now as per user images
+    setProducts([...products, {
+      id: Math.random().toString(36).substr(2, 9),
+      image: { file: null, preview: null, base64: null },
+      name: '',
+      url: '',
+      techData: '',
+      price: '',
+      badge: 'none'
+    }]);
+  };
+
+  const removeProduct = (index: number) => {
+    if (products.length <= 1) return;
+    setProducts(products.filter((_, i) => i !== index));
+  };
+
+  const updateProduct = (index: number, updates: Partial<ProductData>) => {
+    setProducts(prev => prev.map((p, i) => i === index ? { ...p, ...updates } : p));
   };
 
   const generateWithOpenRouter = async (prompt: string, images: { mimeType: string, data: string }[]) => {
@@ -218,8 +265,9 @@ export default function App() {
   };
 
   const handleGenerate = async () => {
-    if (!prodImage.base64 || !productName) {
-      setError('Por favor, envie a imagem do produto e informe o nome.');
+    const invalidProducts = products.filter(p => !p.image.base64 || !p.name);
+    if (invalidProducts.length > 0) {
+      setError('Por favor, certifique-se de que todos os produtos tenham imagem e nome informados.');
       return;
     }
 
@@ -264,11 +312,13 @@ export default function App() {
         imagesForOpenRouter.push({ mimeType: bgImage.file!.type, data: bgImage.base64 });
       }
       
-      if (prodImage.base64) {
-        const mimeType = prodImage.file?.type || 'image/png';
-        copyParts.push({ inlineData: { mimeType, data: prodImage.base64 } });
-        imagesForOpenRouter.push({ mimeType, data: prodImage.base64 });
-      }
+      products.forEach((product, idx) => {
+        if (product.image.base64) {
+          const mimeType = product.image.file?.type || 'image/png';
+          copyParts.push({ inlineData: { mimeType, data: product.image.base64 } });
+          imagesForOpenRouter.push({ mimeType, data: product.image.base64 });
+        }
+      });
       
       if (logoImage.base64) {
         copyParts.push({ inlineData: { mimeType: logoImage.file!.type, data: logoImage.base64 } });
@@ -279,37 +329,37 @@ export default function App() {
         ROLE: Você é o motor de inteligência de vendas e direção de arte do AdCreative AI. Sua missão é transformar inputs técnicos e simples em campanhas multimodais de alta conversão.
         
         INPUTS:
-        - PRODUTO: ${productName}
-        - DADOS TÉCNICOS: ${techData || 'Não fornecidos'}
+        - PRODUTOS:
+        ${products.map((p, i) => `
+          Produto ${i + 1}:
+          - Nome: ${p.name || 'Pendente'}
+          - Valor: ${p.price || 'Não informado'}
+          - Selo: ${p.badge !== 'none' ? p.badge.replace('_', ' ') : 'Nenhum'}
+          - Dados Técnicos: ${p.techData || 'Não fornecidos'}
+        `).join('\n')}
         - ESTILO SELECIONADO: ${selectedStyle} (${stylePrompt})
         - FORMATO: ${formatDetails.name} (${formatDetails.desc})
         
         LÓGICA DE EXECUÇÃO:
-        1. FILTRO DE BENEFÍCIOS: Aplique o teste "So What?". Para cada dado técnico, extraia uma vantagem funcional e um benefício emocional.
-        2. SELEÇÃO DE FRAMEWORK:
-           - Se o produto resolve uma dor: Use PAS (Problema, Agitação, Solução).
-           - Se o produto é desejo/estilo: Use AIDA (Atenção, Interesse, Desejo, Ação).
-           - Se o produto é técnico/inovador: Use BAB (Before, After, Bridge).
+        1. FILTRO DE BENEFÍCIOS: Para cada produto, extraia vantagens funcionais e benefícios emocionais.
+        2. COMPOSIÇÃO: ${products.length > 1 ? 'Como há mais de um produto, organize-os LADO A LADO simetricamente no banner.' : 'Organize o produto de forma centralizada ou ligeiramente à direita.'}
+        3. SELEÇÃO DE FRAMEWORK: Use PAS, AIDA ou BAB conforme a natureza dos produtos.
         
         DIRETRIZES DE OUTPUT:
-        - Headline: Gancho magnético de até 12 palavras.
-        - Body Copy: Texto estruturado no framework escolhido, focado no benefício emocional.
+        - Headline: Gancho magnético que una os produtos ou foque na categoria.
         - Visual Description: Crie um prompt detalhado em INGLÊS para geração de imagem seguindo:
-          - Sujeito: Descrição fotorrealista do produto com foco em materialidade (especialmente aço inox/stainless steel).
+          - Sujeitos: Descrição fotorrealista dos ${products.length} produtos. ${products.length > 1 ? 'Eles devem estar posicionados lado a lado.' : ''}
           - Especificações Técnicas de Design:
             ${selectedStyle === 'gastronomia_premium' ? `
             - Atmosfera: Cozinha industrial luxuosa, tons de preto/grafite.
             - Detalhes: Elementos decorativos em ouro metálico (ornate gold borders).
-            - Texto Sugerido no Layout: Headline em fonte Sans-Serif branca em caixa alta, selo de promoção em faixa dourada (ribbon).
             ` : `
             - Atmosfera: Evento exclusivo/VIP, bokeh noturno, tons de roxo/azul/dourado.
-            - Detalhes: Efeito de fumaça fria/gelo (cold smoke/fog), tipografia pesada (extra-bold) em vermelho bordeaux e branco.
-            - Elementos: Adereços sensoriais (ex: canecas geladas) para desejo de consumo.
+            - Detalhes: Efeito de fumaça fria/gelo (cold smoke/fog).
             `}
-          - Lighting Setup: Traduza o estilo em técnica (ex: High-end studio lighting, dramatic contrast).
-          - Lens & Cam: Use especificações reais (ex: 85mm, f/2.8 para produto).
-          - Composição: Conforme o estilo selecionado (Assimétrica ou Centralizada à direita).
-          - Environment: Crie um cenário imersivo e detalhado que complemente o produto. NUNCA use fundo branco ou plano.
+          - Layout: ${products.length > 1 ? 'SPLIT SCREEN ou SIDE-BY-SIDE layout. Cada produto com seu respectivo bloco de preço e título.' : 'Single product layout.'}
+          - Elementos de Preço: 
+            ${products.map((p, i) => p.price ? `Inclua o valor "${p.price}" próximo ao Produto ${i+1}. Selo: ${p.badge}.` : '').join('\n')}
         
         Responda estritamente em JSON:
         {
@@ -394,9 +444,11 @@ export default function App() {
         imageParts.push({ inlineData: { mimeType: finalBgMime, data: finalBgBase64 } });
       }
       
-      if (prodImage.base64) {
-        imageParts.push({ inlineData: { mimeType: prodImage.file?.type || 'image/png', data: prodImage.base64 } });
-      }
+      products.forEach(p => {
+        if (p.image.base64) {
+          imageParts.push({ inlineData: { mimeType: p.image.file?.type || 'image/png', data: p.image.base64 } });
+        }
+      });
       
       if (logoImage.base64) {
         imageParts.push({ inlineData: { mimeType: logoImage.file?.type || 'image/png', data: logoImage.base64 } });
@@ -417,7 +469,8 @@ export default function App() {
         Render these elements with professional typography:
         1. HEADLINE: "${adData.headline}" - Large, impactful, top/center-top.
         2. BENEFITS: ${adData.benefits.map(b => `• ${b}`).join(' ')} - Clear, legible.
-        3. CTA BUTTON: "${adData.cta}" - Bottom center.
+        ${products.map((p, i) => p.price ? `- PRICE FOR ${p.name || `PRODUCT ${i+1}`}: "${p.price}" - Highlighted with premium style. ${p.badge !== 'none' ? `Include badge text for "${p.badge.replace('_', ' ')}".` : ''}` : '').join('\n')}
+        - CTA BUTTON: "${adData.cta}" - Bottom center.
         
         Final image must be high-resolution, premium e-commerce quality, with all text perfectly legible.`;
 
@@ -642,66 +695,121 @@ export default function App() {
               </p>
             </div>
 
-            <div className="space-y-6 bg-white p-8 rounded-3xl shadow-sm border border-black/5">
-              {/* Product URL Input */}
-              <div className="space-y-3">
-                <label className="text-xs font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
-                  <Globe size={14} /> Link do Produto
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    placeholder="Cole o link do produto aqui..."
-                    className="flex-1 bg-[#F9F9F9] border border-black/5 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
-                    value={productUrl}
-                    onChange={(e) => setProductUrl(e.target.value)}
-                  />
-                  <button
-                    onClick={handleFetchProduct}
-                    disabled={isFetchingProduct || !productUrl}
-                    className={cn(
-                      "px-6 rounded-xl font-semibold transition-all flex items-center gap-2",
-                      isFetchingProduct || !productUrl
-                        ? "bg-black/5 text-black/20 cursor-not-allowed"
-                        : "bg-[#5A5A40] text-white hover:bg-[#4A4A30]"
-                    )}
-                  >
-                    {isFetchingProduct ? <Loader2 className="animate-spin" size={18} /> : <Zap size={18} />}
-                    {isFetchingProduct ? 'Buscando...' : 'Buscar'}
-                  </button>
+            <div className="space-y-8 bg-white p-8 rounded-3xl shadow-sm border border-black/5">
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-black/40">Produtos</h3>
+                  {activeFormat === 'banner' && products.length < 2 && (
+                    <button 
+                      onClick={addProduct}
+                      className="text-xs font-bold text-[#5A5A40] hover:underline flex items-center gap-1"
+                    >
+                      + Adicionar Produto
+                    </button>
+                  )}
                 </div>
-                <p className="text-[10px] text-black/40">
-                  Buscaremos automaticamente a imagem, nome e descrição do produto.
-                </p>
-              </div>
 
-              {/* Product Preview */}
-              {prodImage.preview && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 bg-[#F9F9F9] rounded-2xl border border-black/5 flex gap-4 items-center"
-                >
-                  <div className="w-20 h-20 rounded-xl overflow-hidden border border-black/5 bg-white shrink-0">
-                    <img src={prodImage.preview} className="w-full h-full object-cover" alt="Product Preview" />
+                {products.map((product, index) => (
+                  <div key={product.id} className="space-y-4 p-4 border border-black/5 rounded-2xl relative bg-[#FBFBFA]">
+                    {products.length > 1 && (
+                      <button 
+                        onClick={() => removeProduct(index)}
+                        className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-black/5 text-black/40 hover:bg-red-50 hover:text-red-500 transition-all z-10"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
+                        <Globe size={12} /> Link do Produto {products.length > 1 ? `#${index + 1}` : ''}
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          placeholder="Cole o link do produto aqui..."
+                          className="flex-1 bg-white border border-black/5 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
+                          value={product.url}
+                          onChange={(e) => updateProduct(index, { url: e.target.value })}
+                        />
+                        <button
+                          onClick={() => handleFetchProduct(index)}
+                          disabled={isFetchingIndex === index || !product.url}
+                          className={cn(
+                            "px-4 rounded-xl font-semibold transition-all flex items-center gap-2",
+                            isFetchingIndex === index || !product.url
+                              ? "bg-black/5 text-black/20 cursor-not-allowed"
+                              : "bg-[#5A5A40] text-white hover:bg-[#4A4A30]"
+                          )}
+                        >
+                          {isFetchingIndex === index ? <Loader2 className="animate-spin" size={16} /> : <Zap size={16} />}
+                          <span className="hidden sm:inline">Buscar</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {product.image.preview && (
+                      <div className="p-3 bg-white rounded-xl border border-black/5 flex gap-3 items-center">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden border border-black/5 bg-white shrink-0">
+                          <img src={product.image.preview} className="w-full h-full object-cover" alt="Product Preview" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <input 
+                            className="text-sm font-bold truncate w-full bg-transparent focus:outline-none"
+                            value={product.name}
+                            onChange={(e) => updateProduct(index, { name: e.target.value })}
+                            placeholder="Nome do produto"
+                          />
+                          <p className="text-[10px] text-black/40 line-clamp-1 mt-1">{product.techData || 'Descrição detectada...'}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
+                          <Banknote size={12} /> Valor
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: R$ 4.500,00"
+                          className="w-full bg-white border border-black/5 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
+                          value={product.price}
+                          onChange={(e) => updateProduct(index, { price: e.target.value })}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
+                          <Tag size={12} /> Selo
+                        </label>
+                        <div className="flex gap-1">
+                          {[
+                            { id: 'none', label: 'X', icon: X },
+                            { id: 'a_vista', label: 'À Vista', icon: Banknote },
+                            { id: '12x', label: '12x', icon: CreditCard },
+                            { id: 'promo', label: 'Promo', icon: Percent },
+                          ].map((badge) => (
+                            <button
+                              key={badge.id}
+                              onClick={() => updateProduct(index, { badge: badge.id as any })}
+                              className={cn(
+                                "flex-1 py-2 px-1 rounded-lg border text-[9px] font-bold flex flex-col items-center gap-0.5 transition-all",
+                                product.badge === badge.id
+                                  ? "border-[#1A1A1A] bg-[#1A1A1A] text-white"
+                                  : "border-black/5 bg-white text-black/40 hover:border-black/20"
+                              )}
+                            >
+                              <badge.icon size={12} />
+                              {badge.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-bold truncate">{productName || 'Produto Detectado'}</h4>
-                    <p className="text-[10px] text-black/40 line-clamp-2 mt-1">{techData || 'Descrição detectada...'}</p>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setProdImage({ file: null, preview: null, base64: null });
-                      setProductName('');
-                      setTechData('');
-                      setProductUrl('');
-                    }}
-                    className="p-2 hover:bg-black/5 rounded-full transition-colors text-black/40"
-                  >
-                    <X size={16} />
-                  </button>
-                </motion.div>
-              )}
+                ))}
+              </div>
 
               {/* Style Selector */}
               <div className="space-y-3">
@@ -792,7 +900,7 @@ export default function App() {
                   "w-full bg-black/5 rounded-2xl mb-8",
                   activeFormat === 'post' ? "aspect-square" : 
                   activeFormat === 'stories' ? "aspect-[9/16]" : 
-                  activeFormat === 'banner' ? "aspect-[4/1]" : "aspect-[3.2/1]"
+                  activeFormat === 'banner' ? "aspect-[144/41]" : "aspect-[3.2/1]"
                 )} />
                 <div className="flex flex-col items-center gap-4 w-full">
                   <div className="h-4 w-3/4 bg-black/5 rounded-full" />
@@ -809,7 +917,7 @@ export default function App() {
                     "relative rounded-2xl overflow-hidden bg-black/5 group",
                     activeFormat === 'post' ? "aspect-square" : 
                     activeFormat === 'stories' ? "aspect-[9/16]" : 
-                    activeFormat === 'banner' ? "aspect-[4/1]" : "aspect-[3.2/1]"
+                    activeFormat === 'banner' ? "aspect-[144/41]" : "aspect-[3.2/1]"
                   )}>
                     {result.imageUrl ? (
                       <img 
