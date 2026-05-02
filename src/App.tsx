@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { 
   Camera, 
@@ -98,6 +98,20 @@ const FORMATS = [
   { id: 'banner_mobile', name: 'Banner Mobile', ratio: '3.2:1', desc: '320 x 100 px' },
 ] as const;
 
+const deobfuscate = (str: string | null) => {
+  if (!str) return '';
+  try {
+    return atob(str.split('').reverse().join(''));
+  } catch {
+    return str;
+  }
+};
+
+const obfuscate = (str: string) => {
+  if (!str) return '';
+  return btoa(str).split('').reverse().join('');
+};
+
 export default function App() {
   const [activeFormat, setActiveFormat] = useState<AdFormat>('post');
   const [bgImage, setBgImage] = useState<ImageState>({ file: null, preview: null, base64: null });
@@ -119,15 +133,47 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   
   const [showSettings, setShowSettings] = useState(false);
-  const [openRouterKey, setOpenRouterKey] = useState(() => localStorage.getItem('openRouterKey') || '');
+  const [openRouterKey, setOpenRouterKey] = useState(() => deobfuscate(localStorage.getItem('openRouterKey')));
   const [openRouterModel, setOpenRouterModel] = useState(() => localStorage.getItem('openRouterModel') || 'google/gemini-2.0-flash-001');
   const [useOpenRouter, setUseOpenRouter] = useState(() => localStorage.getItem('useOpenRouter') === 'true');
 
-  const handleSaveSettings = () => {
-    localStorage.setItem('openRouterKey', openRouterKey);
-    localStorage.setItem('openRouterModel', openRouterModel);
-    localStorage.setItem('useOpenRouter', String(useOpenRouter));
-    setShowSettings(false);
+  useEffect(() => {
+    const syncWithServer = async () => {
+      try {
+        if (openRouterKey && useOpenRouter) {
+          await fetch('/api/settings/openrouter', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: openRouterKey, model: openRouterModel })
+          });
+        }
+      } catch (e) {
+        console.error('Error syncing settings:', e);
+      }
+    };
+    syncWithServer();
+  }, []);
+
+  const handleSaveSettings = async () => {
+    try {
+      await fetch('/api/settings/openrouter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: openRouterKey, model: openRouterModel })
+      });
+      
+      localStorage.setItem('openRouterKey', obfuscate(openRouterKey));
+      localStorage.setItem('openRouterModel', openRouterModel);
+      localStorage.setItem('useOpenRouter', String(useOpenRouter));
+      setShowSettings(false);
+    } catch (err) {
+      console.error('Falha ao salvar configurações no servidor:', err);
+      // Fallback to local storage only if server fails
+      localStorage.setItem('openRouterKey', obfuscate(openRouterKey));
+      localStorage.setItem('openRouterModel', openRouterModel);
+      localStorage.setItem('useOpenRouter', String(useOpenRouter));
+      setShowSettings(false);
+    }
   };
 
   const handleDownload = () => {
@@ -227,39 +273,23 @@ export default function App() {
   };
 
   const generateWithOpenRouter = async (prompt: string, images: { mimeType: string, data: string }[]) => {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const response = await fetch("/api/ai/generate", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${openRouterKey.trim()}`,
-        "HTTP-Referer": window.location.origin,
-        "X-Title": "AdCreative AI",
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        "model": openRouterModel || "google/gemini-2.0-flash-001", 
-        "messages": [
-          {
-            "role": "user",
-            "content": [
-              { "type": "text", "text": prompt },
-              ...images.map(img => ({
-                "type": "image_url",
-                "image_url": {
-                  "url": `data:${img.mimeType};base64,${img.data}`
-                }
-              }))
-            ]
-          }
-        ],
-        "response_format": { "type": "json_object" }
+        prompt,
+        images,
+        model: openRouterModel
       })
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error?.message || "Erro na API do OpenRouter");
+      throw new Error(errorData.error || `Erro de IA: ${response.statusText}`);
     }
-    
+
     const data = await response.json();
     return data.choices[0].message.content;
   };

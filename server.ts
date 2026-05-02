@@ -13,7 +13,79 @@ async function startServer() {
 
   app.use(express.json());
 
-  // API routes
+// API routes
+  let openRouterConfig = {
+    key: process.env.OPENROUTER_API_KEY || "",
+    model: "google/gemini-2.0-flash-001"
+  };
+
+  app.post("/api/settings/openrouter", (req, res) => {
+    const { key, model } = req.body;
+    if (key) openRouterConfig.key = key;
+    if (model) openRouterConfig.model = model;
+    res.json({ success: true, hasKey: !!openRouterConfig.key });
+  });
+
+  app.get("/api/settings/openrouter", (req, res) => {
+    res.json({ 
+      model: openRouterConfig.model, 
+      hasKey: !!openRouterConfig.key,
+      // We don't send the full key back for security
+      keyMasked: openRouterConfig.key ? `${openRouterConfig.key.substring(0, 6)}...${openRouterConfig.key.substring(openRouterConfig.key.length - 4)}` : ""
+    });
+  });
+
+  app.post("/api/ai/generate", async (req, res) => {
+    const { prompt, images, model } = req.body;
+    const apiKey = openRouterConfig.key;
+    const targetModel = model || openRouterConfig.model;
+
+    if (!apiKey) {
+      return res.status(401).json({ error: "OpenRouter API Key not configured on server" });
+    }
+
+    try {
+      const messages: any[] = [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            ...(images || []).map((img: any) => ({
+              type: "image_url",
+              image_url: { url: `data:${img.mimeType};base64,${img.data}` }
+            }))
+          ]
+        }
+      ];
+
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "HTTP-Referer": "https://ais-build.google.com", 
+          "X-Title": "AdCreative AI",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: targetModel,
+          messages,
+          response_format: { type: "json_object" }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `OpenRouter error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("AI Generation error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/scrape", async (req, res) => {
     const { url } = req.body;
     if (!url) {
