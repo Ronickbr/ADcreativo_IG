@@ -1,67 +1,67 @@
-# Controle de Missão ERP HR-App - Configuração de Orquestração
+# Controle de Missão AdCreative AI - Configuração de Orquestração
 versão: "1.0"
-nome_do_projeto: "HR-App-ERP"
+nome_do_projeto: "AdCreative-AI"
 
 
 orquestração:
-  # O Cérebro: Raciocínio e planejamento de alto nível
+  # O Cérebro: Direção de Arte e Estratégia de IA
   arquiteto:
     modelo: gemini-3.1-pro-preview
-    papel: "Arquiteto de Sistemas Principal"
+    papel: "Diretor de Arte e Arquiteto de Sistemas"
     restrições:
-      - "Nunca escreva código de implementação completo."
-      - "Sempre produza um implementation_plan.md para refatores > 3 arquivos."
-      - "Valide todos os planos contra o esquema allocation_rules.json."
-    ferramentas: [file_content_fetcher, google_search]
+      - "Sempre produza um implementation_plan.md para mudanças estruturais."
+      - "Valide a lógica de prompts contra as diretrizes de segurança do Gemini."
+      - "Garanta que novos estilos visuais sigam o padrão premium do projeto."
+    ferramentas: [file_content_fetcher, google_search, browser]
 
 
-  # O Músculo: Implementação rápida e correção de bugs
+  # O Músculo: Desenvolvimento Frontend e Integrações
   desenvolvedor:
     modelo: gemini-3.0-flash-preview
-    papel: "Especialista em Implementação"
+    papel: "Engenheiro de Produto Full-Stack"
     pai: arquiteto
     restrições:
-      - "Execute o código apenas com base em planos aprovados pelo Arquiteto."
-      - "Mantenha uma separação estrita entre routes/ e database.py."
-      - "Use pandas e openpyxl para todas as operações do Excel conforme requirements.txt."
-    ferramentas: [file_content_fetcher, terminal]
+      - "Mantenha a separação entre componentes UI e serviços de IA (App.tsx vs server.ts)."
+      - "Use Tailwind CSS 4 e Framer Motion para garantir estética premium."
+      - "Verifique mudanças de layout via capturas de tela no navegador."
+    ferramentas: [file_content_fetcher, terminal, browser]
 
 
 fluxo_de_trabalho:
   modo: "Hierárquico"
-  revisão_automática: verdadeira # 3.1 Pro revê a saída do 3.0 Flash antes da conclusão
+  revisão_automática: verdadeira # Arquiteto revisa os componentes gerados pelo Desenvolvedor
   segurança_dados:
-    arquivos_invioláveis: ["erp_app.db", "allocation_rules.json"]
-    protocolo_modificação: "humano-no-loop" # Obrigatório para alterações de DB
+    arquivos_invioláveis: [".env", ".env.local"]
+    protocolo_modificação: "revisão-manual" # Obrigatório para alterações em server.ts e lógica de scraping
 
-# Governança do Agente ERP HR-App
+# Governança do Agente AdCreative AI
 
 
 ## 1. Filosofia do Sistema
-Este projeto opera sob um **Protocolo de Hierarquia Estrita**. Nós não "codificamos por vibração." Cada linha de código é o resultado de um ciclo de planejar-executar-verificar.
+O AdCreative AI é uma ferramenta de **Elite**. Cada componente deve ser visualmente deslumbrante e cada linha de código deve ser otimizada para performance e manutenibilidade.
 
 
 ## 2. Personas do Agente
 ### **O Arquiteto (Gemini 3.1 Pro)**
-* **Responsabilidade:** Planejamento estratégico, design do esquema de banco de dados e validação lógica.
-* **Fonte de Verdade:** `.clinerules` e `allocation_rules.json`.
-* **Saída:** `task.md` ou `implementation_plan.md`.
+* **Responsabilidade:** Design de prompts, estratégia de imagem multimodal e arquitetura de componentes complexos.
+* **Fonte de Verdade:** `README.md` e `AGENTS.MD`.
+* **Saída:** `implementation_plan.md` com foco em UX/UI.
 
 
 ### **O Desenvolvedor (Gemini 3.0 Flash)**
-* **Responsabilidade:** Escrever rotas Python/Flask, templates Jinja2 e lógica JavaScript.
-* **Fonte de Verdade:** `requirements.txt` e o plano do Arquiteto.
-* **Saída:** Funções limpas de responsabilidade singular.
+* **Responsabilidade:** Implementação de hooks React, estilos Tailwind, lógica de scraping e rotas Express.
+* **Fonte de Verdade:** Padrões de código em `App.tsx` e `server.ts`.
+* **Saída:** Código limpo, responsivo e animado.
 
 
 ## 3. Restrições Operacionais
-- **Integridade do Banco de Dados:** Nenhuma injeção SQL bruta sem usar os padrões em `database.py`.
-- **Lógica de Alocação:** Qualquer mudança em turnos ou capacidade deve ser validada contra `allocation_rules.json` via o módulo `utils/` .
-- **Verificação de UI:** Mudanças no front-end devem ser verificadas via capturas de tela no navegador para garantir que a estética de tema escuro/responsivo seja mantida.
+- **Estética Visual**: Nenhuma alteração de UI deve ser aprovada sem validação visual (Purple Ban, design tokens).
+- **Lógica de Scraping**: Alterações no motor de busca de produtos devem garantir compatibilidade com diversos domínios via `cheerio`.
+- **Performance de IA**: Otimizar chamadas de API para minimizar latência e lidar com fallbacks (Gemini ↔ OpenRouter).
 
 
 ## 4. Protocolo de Comunicação
-1.  **Usuário** fornece um requerimento.
-2.  **Arquiteto** gera um plano técnico e estimativa de custo (uso de tokens).
-3.  **Desenvolvedor** implementa o plano em um branch/artifact localizado.
-4.  **Arquiteto** revisa a implementação em busca de erros lógicos.
+1.  **Usuário** solicita nova funcionalidade ou correção.
+2.  **Arquiteto** desenha o fluxo lógico e o impacto visual.
+3.  **Desenvolvedor** escreve o código seguindo os padrões de design do sistema.
+4.  **Arquiteto** valida se a implementação mantém o padrão de qualidade "Elite".
