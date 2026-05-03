@@ -44,7 +44,7 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-type AdStyle = 'gastronomia_premium' | 'experiencia_vip';
+type AdStyle = 'gastronomia_premium' | 'experiencia_vip' | 'vanguarda_tech';
 type AdFormat = 'post' | 'banner' | 'stories' | 'banner_mobile';
 
 interface AdResult {
@@ -88,6 +88,13 @@ const STYLES = [
     icon: Zap,
     desc: 'Impacto sensorial, dramático e exclusivo',
     preview: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&q=80&w=200&h=200'
+  },
+  {
+    id: 'vanguarda_tech',
+    name: 'Vanguarda Tech',
+    icon: Sparkles,
+    desc: 'Minimalista, ultra-moderno e focado em inovação',
+    preview: 'https://images.unsplash.com/photo-1485827404703-89b55fcc595e?auto=format&fit=crop&q=80&w=200&h=200'
   },
 ];
 
@@ -373,7 +380,11 @@ export default function App() {
           High dramatic contrast.
           Colors: Typography in pure red and white. Product in silver stainless steel. Icons according to the product type.
           Visuals: Product in the foreground, centered on the right, with studio lighting. Sensory details: subtle smoke/fire/cold frost effects all in accordance with the product.
-          Props: Realistic context, all in accordance with the product. Asymmetrical composition.`
+          Props: Realistic context, all in accordance with the product. Asymmetrical composition.`,
+        vanguarda_tech: `Ultra-modern High-Tech Aesthetic. Minimalist white/light gray studio background.
+          Colors: Pure white, cool grays, vibrant electric blue accents.
+          Lighting: Neo-studio setup, subtle blue rim lights, soft procedural shadows. 
+          Atmosphere: Innovation, precision, and cutting-edge design. Glassmorphism elements in the UI rendering.`
       }[selectedStyle];
 
       const formatDetails = FORMATS.find(f => f.id === activeFormat)!;
@@ -430,9 +441,12 @@ export default function App() {
             ${selectedStyle === 'gastronomia_premium' ? `
             - Atmosfera: Cozinha industrial luxuosa, tons de preto/grafite.
             - Detalhes: Elementos decorativos em ouro metálico (ornate gold borders).
-            ` : `
+            ` : selectedStyle === 'experiencia_vip' ? `
             - Atmosfera: Evento exclusivo/VIP, bokeh noturno, tons de roxo/azul/dourado.
             - Detalhes: Efeito de fumaça fria/gelo (cold smoke/fog).
+            ` : `
+            - Atmosfera: Laboratório de design futurista, minimalismo extremo, tons de branco/gelo.
+            - Detalhes: Acentos em neon azul elétrico (electric blue), reflexos em vidro e metal polido.
             `}
           - Layout: ${products.length > 1 ? 'SPLIT SCREEN ou SIDE-BY-SIDE layout. Cada produto com seu respectivo bloco de preço e título.' : 'Single product layout.'}
           - Elementos de Preço: 
