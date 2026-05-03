@@ -3,6 +3,9 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import * as cheerio from "cheerio";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,7 +16,7 @@ async function startServer() {
 
   app.use(express.json());
 
-// API routes
+  // API routes
   let openRouterConfig = {
     key: process.env.OPENROUTER_API_KEY || "",
     model: "google/gemini-2.0-flash-001"
@@ -27,16 +30,32 @@ async function startServer() {
   });
 
   app.get("/api/settings/openrouter", (req, res) => {
-    res.json({ 
-      model: openRouterConfig.model, 
+    res.json({
+      model: openRouterConfig.model,
       hasKey: !!openRouterConfig.key,
       // We don't send the full key back for security
       keyMasked: openRouterConfig.key ? `${openRouterConfig.key.substring(0, 6)}...${openRouterConfig.key.substring(openRouterConfig.key.length - 4)}` : ""
     });
   });
 
+  app.get("/api/proxy-image", async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).send("URL is required");
+    try {
+      const response = await fetch(url as string);
+      if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
+      const buffer = await response.arrayBuffer();
+      const contentType = response.headers.get("content-type");
+      res.set("Content-Type", contentType || "image/jpeg");
+      res.send(Buffer.from(buffer));
+    } catch (e: any) {
+      console.error("Proxy image error:", e);
+      res.status(500).send(`Error proxying image: ${e.message}`);
+    }
+  });
+
   app.post("/api/ai/generate", async (req, res) => {
-    const { prompt, images, model } = req.body;
+    const { prompt, images, model, isImage, aspectRatio } = req.body;
     const apiKey = openRouterConfig.key;
     const targetModel = model || openRouterConfig.model;
 
@@ -52,33 +71,52 @@ async function startServer() {
             { type: "text", text: prompt },
             ...(images || []).map((img: any) => ({
               type: "image_url",
-              image_url: { url: `data:${img.mimeType};base64,${img.data}` }
+              image_url: { url: img.data.startsWith('data:') ? img.data : `data:${img.mimeType || 'image/png'};base64,${img.data}` }
             }))
           ]
         }
       ];
 
+      const body: any = {
+        model: targetModel,
+        messages,
+      };
+
+      const isBananaModel = targetModel.includes("banana") || targetModel.includes("-image");
+
+      if (isImage) {
+        // Required for OpenRouter image generation models like Gemini Nano Banana
+        body.modalities = ["image", "text"];
+        body.image_config = {
+          image_size: "1K", // Default to 1K
+          aspect_ratio: aspectRatio || "1:1"
+        };
+      } else if (!isBananaModel) {
+        // Only use JSON mode for non-specialized image models to avoid provider errors
+        body.response_format = { type: "json_object" };
+      }
+
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
-          "HTTP-Referer": "https://ais-build.google.com", 
+          "HTTP-Referer": "https://ais-build.google.com",
           "X-Title": "AdCreative AI",
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({
-          model: targetModel,
-          messages,
-          response_format: { type: "json_object" }
-        })
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("OpenRouter API Error Details:", JSON.stringify(errorData));
         throw new Error(errorData.error?.message || `OpenRouter error: ${response.statusText}`);
       }
 
       const data = await response.json();
+      if (isImage) {
+        console.log("OpenRouter Image Generation Response received");
+      }
       res.json(data);
     } catch (error: any) {
       console.error("AI Generation error:", error);
@@ -98,7 +136,7 @@ async function startServer() {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch URL: ${response.statusText}`);
       }
@@ -107,16 +145,16 @@ async function startServer() {
       const $ = cheerio.load(html);
 
       // Basic scraping logic - can be improved for specific sites
-      const title = $('meta[property="og:title"]').attr("content") || 
-                    $("title").text() || 
-                    $("h1").first().text();
-      const description = $('meta[name="description"]').attr("content") || 
-                         $('meta[property="og:description"]').attr("content") ||
-                         $("p").first().text();
-      
+      const title = $('meta[property="og:title"]').attr("content") ||
+        $("title").text() ||
+        $("h1").first().text();
+      const description = $('meta[name="description"]').attr("content") ||
+        $('meta[property="og:description"]').attr("content") ||
+        $("p").first().text();
+
       // Try to find the main product image
-      let imageUrl = $('meta[property="og:image"]').attr("content") || 
-                     $('meta[name="twitter:image"]').attr("content");
+      let imageUrl = $('meta[property="og:image"]').attr("content") ||
+        $('meta[name="twitter:image"]').attr("content");
 
       if (!imageUrl) {
         // Fallback: find the first large image

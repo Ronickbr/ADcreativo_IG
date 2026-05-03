@@ -5,13 +5,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
-import { 
-  Camera, 
-  Image as ImageIcon, 
-  FileText, 
-  Sparkles, 
-  Download, 
-  Share2, 
+import {
+  Camera,
+  Image as ImageIcon,
+  FileText,
+  Sparkles,
+  Download,
+  Share2,
   RefreshCw,
   CheckCircle2,
   AlertCircle,
@@ -75,19 +75,19 @@ interface ProductData {
 }
 
 const STYLES = [
-  { 
-    id: 'gastronomia_premium', 
-    name: 'Gastronomia Premium', 
-    icon: Crown, 
-    desc: 'Sofisticação, robustez e autoridade industrial', 
-    preview: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&q=80&w=200&h=200' 
+  {
+    id: 'gastronomia_premium',
+    name: 'Gastronomia Premium',
+    icon: Crown,
+    desc: 'Sofisticação, robustez e autoridade industrial',
+    preview: 'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&q=80&w=200&h=200'
   },
-  { 
-    id: 'experiencia_vip', 
-    name: 'Experiência VIP', 
-    icon: Zap, 
-    desc: 'Impacto sensorial, dramático e exclusivo', 
-    preview: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&q=80&w=200&h=200' 
+  {
+    id: 'experiencia_vip',
+    name: 'Experiência VIP',
+    icon: Zap,
+    desc: 'Impacto sensorial, dramático e exclusivo',
+    preview: 'https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?auto=format&fit=crop&q=80&w=200&h=200'
   },
 ];
 
@@ -97,6 +97,20 @@ const FORMATS = [
   { id: 'banner', name: 'Banner Web', ratio: '144:41', desc: '1440 x 410 px' },
   { id: 'banner_mobile', name: 'Banner Mobile', ratio: '3.2:1', desc: '320 x 100 px' },
 ] as const;
+
+const BADGE_OPTIONS = [
+  { id: 'none', label: 'X', icon: X, prompt: '' },
+  { id: 'a_vista', label: 'À Vista', icon: Banknote, prompt: 'À Vista' },
+  { id: '12x', label: '12x Sem Juros', icon: CreditCard, prompt: '12x Sem Juros' },
+  { id: 'promo', label: 'Promoção', icon: Percent, prompt: 'Promoção' },
+] as const;
+
+const RECOMMENDED_OR_MODELS = [
+  { id: 'google/gemini-2.5-flash-image', name: 'Nano Banana (Gemini 2.5 Flash Image)' },
+  { id: 'google/gemini-3.1-flash-image-preview', name: 'Nano Banana 2 (Gemini 3.1 Flash Image Preview)' },
+  { id: 'google/gemini-3-pro-image-preview', name: 'Nano Banana Pro (Gemini 3 Pro Image Preview)' },
+  { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash (General Purpose)' },
+];
 
 const deobfuscate = (str: string | null) => {
   if (!str) return '';
@@ -131,11 +145,13 @@ export default function App() {
   const [generationStep, setGenerationStep] = useState<string>('');
   const [result, setResult] = useState<AdResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [showSettings, setShowSettings] = useState(false);
   const [openRouterKey, setOpenRouterKey] = useState(() => deobfuscate(localStorage.getItem('openRouterKey')));
   const [openRouterModel, setOpenRouterModel] = useState(() => localStorage.getItem('openRouterModel') || 'google/gemini-2.0-flash-001');
   const [useOpenRouter, setUseOpenRouter] = useState(() => localStorage.getItem('useOpenRouter') === 'true');
+  const [fallbackToOpenRouter, setFallbackToOpenRouter] = useState(() => localStorage.getItem('fallbackToOpenRouter') === 'true');
+  const [geminiApiKey, setGeminiApiKey] = useState(() => deobfuscate(localStorage.getItem('geminiApiKey')));
 
   useEffect(() => {
     const syncWithServer = async () => {
@@ -161,10 +177,12 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: openRouterKey, model: openRouterModel })
       });
-      
+
       localStorage.setItem('openRouterKey', obfuscate(openRouterKey));
       localStorage.setItem('openRouterModel', openRouterModel);
       localStorage.setItem('useOpenRouter', String(useOpenRouter));
+      localStorage.setItem('fallbackToOpenRouter', String(fallbackToOpenRouter));
+      localStorage.setItem('geminiApiKey', obfuscate(geminiApiKey));
       setShowSettings(false);
     } catch (err) {
       console.error('Falha ao salvar configurações no servidor:', err);
@@ -172,6 +190,8 @@ export default function App() {
       localStorage.setItem('openRouterKey', obfuscate(openRouterKey));
       localStorage.setItem('openRouterModel', openRouterModel);
       localStorage.setItem('useOpenRouter', String(useOpenRouter));
+      localStorage.setItem('fallbackToOpenRouter', String(fallbackToOpenRouter));
+      localStorage.setItem('geminiApiKey', obfuscate(geminiApiKey));
       setShowSettings(false);
     }
   };
@@ -193,7 +213,7 @@ export default function App() {
         const response = await fetch(result.imageUrl);
         const blob = await response.blob();
         const file = new File([blob], 'criativo.png', { type: 'image/png' });
-        
+
         await navigator.share({
           title: result.headline,
           text: result.caption,
@@ -223,13 +243,13 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: product.url }),
       });
-      
+
       if (!response.ok) {
         throw new Error('Falha ao buscar informações do produto. Verifique o link.');
       }
-      
+
       const data = await response.json();
-      
+
       setProducts(prev => prev.map((p, i) => {
         if (i !== index) return p;
         return {
@@ -287,11 +307,20 @@ export default function App() {
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || `Erro de IA: ${response.statusText}`);
+      console.error("OpenRouter Response Error:", errorData);
+      throw new Error(errorData.error?.message || errorData.error || `Erro de IA: ${response.statusText}`);
     }
 
     const data = await response.json();
-    return data.choices[0].message.content;
+    const content = data.choices[0].message.content;
+
+    // Some models return just the JSON string, others might wrap it in markdown
+    if (typeof content === 'string' && content.includes('```json')) {
+      const match = content.match(/```json\n([\s\S]*?)\n```/);
+      if (match) return match[1];
+    }
+
+    return content;
   };
 
   const handleGenerate = async () => {
@@ -306,42 +335,60 @@ export default function App() {
     setError(null);
 
     try {
-      // Ensure API key is selected for Gemini 3.1 models
-      if (typeof window !== 'undefined' && (window as any).aistudio) {
+      // 1. Determine API Key
+      let apiKey = geminiApiKey || process.env.GEMINI_API_KEY || "";
+
+      // Ensure API key is selected for Gemini 3.1 models if in AI Studio
+      if (!apiKey && typeof window !== 'undefined' && (window as any).aistudio) {
         const hasKey = await (window as any).aistudio.hasSelectedApiKey();
         if (!hasKey) {
           await (window as any).aistudio.openSelectKey();
         }
+        apiKey = await (window as any).aistudio.getSelectedApiKey();
       }
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
+      const effectiveUseOpenRouter = useOpenRouter || (fallbackToOpenRouter && !apiKey && openRouterKey.trim());
+
+      if (!apiKey && !effectiveUseOpenRouter) {
+        setError('Configuração Incompleta: Adicione uma chave do Gemini ou habilite o fallback para OpenRouter nas configurações.');
+        setIsGenerating(false);
+        return;
+      }
+
+      if (!apiKey && effectiveUseOpenRouter) {
+        // We need a dummy or the SDK will throw before we even decide to use it for images
+        // Some proxies or specific setups might work, but standard SDK needs a string.
+        // If we only use OpenRouter for copy, we'll hit an error later at image step.
+      }
+
+      const ai = apiKey ? new GoogleGenAI({ apiKey: apiKey }) : null;
+
       const stylePrompt = {
-        gastronomia_premium: `Banner Gastronomia Premium. High-end industrial kitchen background, dark tones, professionally blurred bokeh. 
-          Colors: Deep Black, Graphite Gray, Metallic Gold accents. 
-          Lighting: Soft sparkles, golden edge reflections, clear frontal studio light on the stainless steel product. 
-          Layout: Product placed center-right. Ornate gold decorative borders on corners. 
-          Elements: Minimalist gold technical icons. Sophisticated and authoritative atmosphere.`,
-        experiencia_vip: `Experiência VIP e Alto Impacto. Immersive night scene, bar/event atmosphere with intense purple, deep blue, and gold bokeh. 
-          Dramatic high contrast. 
-          Colors: Bordeaux Red and Pure White typography. Silver stainless steel product. Cold blue icons. 
-          Visuals: Product in foreground center-right with studio lighting. Sensory details: subtle cold smoke/fog/frost effects. 
-          Props: Realistic context like frosted glasses or related high-end results. Asymmetric composition.`
+        gastronomia_premium: `Premium Gastronomy Banner. Background matching the product, dark tones, professionally blurred bokeh.
+        Colors: Deep black, graphite gray.
+        Lighting: Soft highlights, illuminated reflections on the edges, bright front studio light on the stainless steel product.
+        Layout: Product positioned center right.
+        Elements: Minimalist technical icons in gold. Sophisticated and imposing atmosphere.`,
+        experiencia_vip: `VIP Experience and High Impact. Scene in accordance with the cinematic product.
+          High dramatic contrast.
+          Colors: Typography in pure red and white. Product in silver stainless steel. Icons according to the product type.
+          Visuals: Product in the foreground, centered on the right, with studio lighting. Sensory details: subtle smoke/fire/cold frost effects all in accordance with the product.
+          Props: Realistic context, all in accordance with the product. Asymmetrical composition.`
       }[selectedStyle];
 
       const formatDetails = FORMATS.find(f => f.id === activeFormat)!;
 
       // 1. Generate Copy and Visual Strategy
       setGenerationStep('Criando estratégia de copy...');
-      
+
       const copyParts: any[] = [];
       const imagesForOpenRouter: { mimeType: string, data: string }[] = [];
-      
+
       if (bgImage.base64) {
         copyParts.push({ inlineData: { mimeType: bgImage.file!.type, data: bgImage.base64 } });
         imagesForOpenRouter.push({ mimeType: bgImage.file!.type, data: bgImage.base64 });
       }
-      
+
       products.forEach((product, idx) => {
         if (product.image.base64) {
           const mimeType = product.image.file?.type || 'image/png';
@@ -349,12 +396,12 @@ export default function App() {
           imagesForOpenRouter.push({ mimeType, data: product.image.base64 });
         }
       });
-      
+
       if (logoImage.base64) {
         copyParts.push({ inlineData: { mimeType: logoImage.file!.type, data: logoImage.base64 } });
         imagesForOpenRouter.push({ mimeType: logoImage.file!.type, data: logoImage.base64 });
       }
-      
+
       const promptText = `
         ROLE: Você é o motor de inteligência de vendas e direção de arte do AdCreative AI. Sua missão é transformar inputs técnicos e simples em campanhas multimodais de alta conversão.
         
@@ -364,7 +411,7 @@ export default function App() {
           Produto ${i + 1}:
           - Nome: ${p.name || 'Pendente'}
           - Valor: ${p.price || 'Não informado'}
-          - Selo: ${p.badge !== 'none' ? p.badge.replace('_', ' ') : 'Nenhum'}
+          - Selo: ${p.badge !== 'none' ? BADGE_OPTIONS.find(b => b.id === p.badge)?.prompt : 'Nenhum'}
           - Dados Técnicos: ${p.techData || 'Não fornecidos'}
         `).join('\n')}
         - ESTILO SELECIONADO: ${selectedStyle} (${stylePrompt})
@@ -389,7 +436,7 @@ export default function App() {
             `}
           - Layout: ${products.length > 1 ? 'SPLIT SCREEN ou SIDE-BY-SIDE layout. Cada produto com seu respectivo bloco de preço e título.' : 'Single product layout.'}
           - Elementos de Preço: 
-            ${products.map((p, i) => p.price ? `Inclua o valor "${p.price}" próximo ao Produto ${i+1}. Selo: ${p.badge}.` : '').join('\n')}
+            ${products.map((p, i) => p.price ? `Inclua o valor "${p.price}" próximo ao Produto ${i + 1}. Selo: ${p.badge}.` : '').join('\n')}
         
         Responda estritamente em JSON:
         {
@@ -404,14 +451,44 @@ export default function App() {
       `;
 
       let adData;
-      if (useOpenRouter && openRouterKey.trim()) {
+      if (effectiveUseOpenRouter && openRouterKey.trim()) {
         console.log('Using OpenRouter for copy generation...');
-        const openRouterResponse = await generateWithOpenRouter(promptText, imagesForOpenRouter);
-        adData = JSON.parse(openRouterResponse);
-      } else {
+
+        // Use a stable multimodal model for analysis/copy if the selected model is an image generator
+        const isImageModel = openRouterModel.includes('banana') || openRouterModel.includes('-image');
+        const copyModel = isImageModel ? 'google/gemini-2.0-flash-001' : openRouterModel;
+
+        if (isImageModel) console.log(`Redirecting copy generation to ${copyModel} for better vision analysis...`);
+
+        const response = await fetch("/api/ai/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: promptText,
+            images: imagesForOpenRouter,
+            model: copyModel
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Erro no OpenRouter (Copy): ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const content = data.choices[0].message.content;
+
+        let jsonStr = content;
+        if (typeof content === 'string' && content.includes('```json')) {
+          const match = content.match(/```json\n([\s\S]*?)\n```/);
+          if (match) jsonStr = match[1];
+        }
+
+        adData = JSON.parse(jsonStr);
+      } else if (ai) {
         console.log('Using Gemini directly for copy generation...');
         const copyResponse = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
+          model: "gemini-2.0-flash",
           contents: [{ role: 'user', parts: [...copyParts, { text: promptText }] }],
           config: {
             responseMimeType: "application/json",
@@ -431,6 +508,8 @@ export default function App() {
           }
         });
         adData = JSON.parse(copyResponse.text);
+      } else {
+        throw new Error('Nenhum serviço de IA disponível para geração de copy.');
       }
 
       // 2. Fetch Real Background if needed
@@ -444,15 +523,15 @@ export default function App() {
           const [width, height] = formatDetails.ratio.split(':').map(Number);
           const w = width > height ? 1200 : 1080;
           const h = Math.round(w * (height / width));
-          
+
           // Using a more reliable way to fetch images that might have CORS issues
-          // We try to fetch from a service that is generally more permissive
-          const imageUrl = `https://loremflickr.com/${w}/${h}/${keywords}`;
-          
-          const imgRes = await fetch(imageUrl, { cache: 'no-cache' });
+          // We use our local proxy to avoid CORS errors in the browser
+          const imageUrl = `/api/proxy-image?url=${encodeURIComponent(`https://loremflickr.com/${w}/${h}/${keywords}`)}`;
+
+          const imgRes = await fetch(imageUrl);
           if (!imgRes.ok) throw new Error('Failed to fetch image');
           const blob = await imgRes.blob();
-          
+
           const reader = new FileReader();
           finalBgBase64 = await new Promise((resolve, reject) => {
             reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
@@ -468,22 +547,22 @@ export default function App() {
 
       // 3. Generate the Final Composition
       setGenerationStep('Compondo arte visual com textos...');
-      
+
       const imageParts: any[] = [];
       if (finalBgBase64) {
         imageParts.push({ inlineData: { mimeType: finalBgMime, data: finalBgBase64 } });
       }
-      
+
       products.forEach(p => {
         if (p.image.base64) {
           imageParts.push({ inlineData: { mimeType: p.image.file?.type || 'image/png', data: p.image.base64 } });
         }
       });
-      
+
       if (logoImage.base64) {
         imageParts.push({ inlineData: { mimeType: logoImage.file?.type || 'image/png', data: logoImage.base64 } });
       }
-      
+
       const visualPrompt = `Professional ${formatDetails.name} advertisement. 
         Aspect ratio: ${formatDetails.ratio}.
         Style: ${stylePrompt}.
@@ -499,52 +578,152 @@ export default function App() {
         Render these elements with professional typography:
         1. HEADLINE: "${adData.headline}" - Large, impactful, top/center-top.
         2. BENEFITS: ${adData.benefits.map(b => `• ${b}`).join(' ')} - Clear, legible.
-        ${products.map((p, i) => p.price ? `- PRICE FOR ${p.name || `PRODUCT ${i+1}`}: "${p.price}" - Highlighted with premium style. ${p.badge !== 'none' ? `Include badge text for "${p.badge.replace('_', ' ')}".` : ''}` : '').join('\n')}
+        ${products.map((p, i) => p.price ? `- PRICE FOR ${p.name || `PRODUCT ${i + 1}`}: "${p.price}" - Highlighted with premium style. ${p.badge !== 'none' ? `Include badge text for "${BADGE_OPTIONS.find(b => b.id === p.badge)?.prompt}".` : ''}` : '').join('\n')}
         - CTA BUTTON: "${adData.cta}" - Bottom center.
         
         Final image must be high-resolution, premium e-commerce quality, with all text perfectly legible.`;
 
       const isBanner = activeFormat === 'banner';
-      const imageModel = isBanner ? 'gemini-3.1-flash-image-preview' : 'gemini-2.5-flash-image';
-      
-      const imageResponse = await ai.models.generateContent({
-        model: imageModel,
-        contents: { parts: [...imageParts, { text: visualPrompt }] },
-        config: {
-          imageConfig: {
-            aspectRatio: formatDetails.ratio as any,
-            ...(isBanner ? { imageSize: "1K" } : {})
-          },
-        },
-      });
+      // Use real models instead of placeholders
+      const imageModel = isBanner ? 'gemini-2.0-pro' : 'gemini-2.0-flash';
 
       let imageUrl = '';
-      const candidate = imageResponse.candidates?.[0];
-      
-      if (candidate?.content?.parts) {
-        for (const part of candidate.content.parts) {
-          if (part.inlineData) {
-            imageUrl = `data:image/png;base64,${part.inlineData.data}`;
-            break;
+
+      if (!effectiveUseOpenRouter && ai) {
+        const imageResponse = await ai.models.generateContent({
+          model: imageModel,
+          contents: { parts: [...imageParts, { text: visualPrompt }] },
+          config: {
+            imageConfig: {
+              aspectRatio: formatDetails.ratio as any,
+              ...(isBanner ? { imageSize: "1K" } : {})
+            },
+          },
+        });
+
+        const candidate = imageResponse.candidates?.[0];
+
+        if (candidate?.content?.parts) {
+          for (const part of candidate.content.parts) {
+            if (part.inlineData) {
+              imageUrl = `data:image/png;base64,${part.inlineData.data}`;
+              break;
+            }
           }
         }
-      }
 
-      if (!imageUrl) {
-        const finishReason = candidate?.finishReason;
-        if (finishReason === 'SAFETY') {
-          throw new Error('A geração foi bloqueada pelos filtros de segurança. Tente mudar o produto ou o estilo.');
+        if (!imageUrl) {
+          const finishReason = candidate?.finishReason;
+          if (finishReason === 'SAFETY') {
+            throw new Error('A geração foi bloqueada pelos filtros de segurança. Tente mudar o produto ou o estilo.');
+          }
+          throw new Error('O modelo não retornou uma imagem. Tente novamente com um estilo diferente ou menos texto.');
         }
-        throw new Error('O modelo não retornou uma imagem. Tente novamente com um estilo diferente ou menos texto.');
+      } else if (effectiveUseOpenRouter && openRouterKey.trim()) {
+        console.log('Using OpenRouter for image generation...');
+        const orImageResponse = await fetch("/api/ai/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: visualPrompt + "\n\nIMPORTANT: You MUST generate and return the final image based on the prompt above.",
+            images: imageParts.map(p => ({ mimeType: p.inlineData.mimeType, data: p.inlineData.data })),
+            model: openRouterModel,
+            isImage: true,
+            aspectRatio: formatDetails.ratio
+          })
+        });
+
+        if (!orImageResponse.ok) {
+          const errorData = await orImageResponse.json();
+          throw new Error(`Erro no OpenRouter (Imagem): ${errorData.error || orImageResponse.statusText}`);
+        }
+
+        const orData = await orImageResponse.json();
+        const message = orData.choices?.[0]?.message;
+        const content = message?.content;
+
+        console.log('OpenRouter Response:', JSON.stringify(orData).substring(0, 200));
+
+        // 1. Check for images array (OpenRouter/Gemini specific format)
+        if (message?.images && Array.isArray(message.images) && message.images.length > 0) {
+          const firstImg = message.images[0];
+          if (typeof firstImg === 'string') {
+            imageUrl = firstImg.startsWith('data:') ? firstImg : `data:image/png;base64,${firstImg}`;
+          } else if (firstImg && typeof firstImg === 'object') {
+            const potentialUrl = (firstImg as any).url || (firstImg as any).image_url?.url || (firstImg as any).data;
+            if (potentialUrl && typeof potentialUrl === 'string') {
+              imageUrl = potentialUrl.startsWith('data:') || potentialUrl.startsWith('http')
+                ? potentialUrl
+                : `data:image/png;base64,${potentialUrl}`;
+            }
+          }
+        }
+
+        // 2. Try to find image in message.parts (Gemini/OpenRouter specific)
+        if (!imageUrl && message?.parts && Array.isArray(message.parts)) {
+          for (const part of message.parts) {
+            if (part.type === 'image_url' && part.image_url?.url) {
+              imageUrl = part.image_url.url;
+              break;
+            }
+            if (part.inline_data?.data) {
+              imageUrl = `data:${part.inline_data.mime_type || 'image/png'};base64,${part.inline_data.data}`;
+              break;
+            }
+            if (part.inlineData?.data) {
+              imageUrl = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+              break;
+            }
+          }
+        }
+
+        // 3. Try to find in message.content if it's an array (OpenAI Multimodal style)
+        if (!imageUrl && Array.isArray(content)) {
+          for (const item of content) {
+            if (item.type === 'image_url' && item.image_url?.url) {
+              imageUrl = item.image_url.url;
+              break;
+            }
+          }
+        }
+
+        // 4. Check for standard OpenAI image response format if nested
+        if (!imageUrl && orData.data?.[0]?.url) {
+          imageUrl = orData.data[0].url;
+        } else if (!imageUrl && orData.data?.[0]?.b64_json) {
+          imageUrl = `data:image/png;base64,${orData.data[0].b64_json}`;
+        }
+
+        // 5. Try to find base64 in content string
+        if (!imageUrl && typeof content === 'string') {
+          const base64Match = content.match(/data:image\/[a-zA-Z]*;base64,[^\s"']+/);
+          if (base64Match) {
+            imageUrl = base64Match[0];
+          } else if (content.length > 1000 && /^[A-Za-z0-9+/=]+$/.test(content.trim())) {
+            imageUrl = `data:image/png;base64,${content.trim()}`;
+          }
+        }
+
+        // 6. Check for Bounding Box / Spatial output (Common Gemini failure for image gen)
+        if (!imageUrl && typeof content === 'string' && (content.includes('box_2d') || content.includes('["box_2d"]'))) {
+          throw new Error(`O modelo "${openRouterModel}" retornou coordenadas de detecção em vez de uma imagem. Esse modelo geralmente não gera imagens via API de chat se o parâmetro 'modalities' não estiver configurado corretamente ou se o modelo não suportar. Tente o modelo "google/gemini-2.5-flash-image".`);
+        }
+
+        if (!imageUrl) {
+          console.error('Failed to extract image. Full response:', orData);
+          throw new Error(`O modelo do OpenRouter não retornou uma imagem. Resposta: ${typeof content === 'string' ? content.substring(0, 100) : 'Formato desconhecido'}. Verifique se você está usando um modelo que suporta geração de imagem (ex: Gemini Nano Banana).`);
+        }
+      } else {
+        throw new Error('Geração de imagem requer uma chave do Gemini (Google AI Studio) ou configuração correta do OpenRouter.');
       }
 
       setResult({ ...adData, imageUrl });
     } catch (err: any) {
       console.error('Generation Error:', err);
-      
+
       const errorStr = JSON.stringify(err);
       const errorMessage = err.message || '';
-      
+
       if (errorMessage.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED') || errorStr.includes('429')) {
         setError('Limite de Uso Atingido (Erro 429): O Google Gemini gratuito tem um limite de requisições por minuto. Ação: Aguarde cerca de 60 segundos e clique em "Gerar Criativo" novamente. Se o erro persistir, considere usar uma chave de API paga.');
       } else if (errorMessage.includes('403') || errorStr.includes('PERMISSION_DENIED')) {
@@ -574,14 +753,14 @@ export default function App() {
       <AnimatePresence>
         {showSettings && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowSettings(false)}
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -597,7 +776,7 @@ export default function App() {
                     <p className="text-xs text-black/40">Personalize sua experiência</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setShowSettings(false)}
                   className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5 transition-colors"
                 >
@@ -612,7 +791,7 @@ export default function App() {
                       <Globe size={16} className="text-black/40" />
                       <span className="text-sm font-medium">Usar OpenRouter</span>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setUseOpenRouter(!useOpenRouter)}
                       className={cn(
                         "w-12 h-6 rounded-full transition-all relative",
@@ -622,6 +801,25 @@ export default function App() {
                       <div className={cn(
                         "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
                         useOpenRouter ? "left-7" : "left-1"
+                      )} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pb-2">
+                    <div className="flex items-center gap-2">
+                      <History size={16} className="text-black/40" />
+                      <span className="text-sm font-medium">Fallback p/ OpenRouter</span>
+                    </div>
+                    <button
+                      onClick={() => setFallbackToOpenRouter(!fallbackToOpenRouter)}
+                      className={cn(
+                        "w-12 h-6 rounded-full transition-all relative",
+                        fallbackToOpenRouter ? "bg-[#5A5A40]" : "bg-black/10"
+                      )}
+                    >
+                      <div className={cn(
+                        "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                        fallbackToOpenRouter ? "left-7" : "left-1"
                       )} />
                     </button>
                   </div>
@@ -641,19 +839,54 @@ export default function App() {
 
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Modelo OpenRouter</label>
-                        <input
-                          type="text"
-                          placeholder="ex: google/gemini-2.0-flash-001"
-                          className="w-full bg-[#F9F9F9] border border-black/5 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
-                          value={openRouterModel}
-                          onChange={(e) => setOpenRouterModel(e.target.value)}
-                        />
-                        <p className="text-[10px] text-black/40 leading-relaxed">
-                          Insira o ID do modelo do OpenRouter (ex: <code>google/gemini-2.0-flash-001</code> ou <code>anthropic/claude-3.5-sonnet</code>).
-                        </p>
+                        <div className="space-y-2">
+                          <select
+                            className="w-full bg-[#F9F9F9] border border-black/5 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all appearance-none"
+                            value={RECOMMENDED_OR_MODELS.some(m => m.id === openRouterModel) ? openRouterModel : 'custom'}
+                            onChange={(e) => {
+                              if (e.target.value !== 'custom') setOpenRouterModel(e.target.value);
+                            }}
+                          >
+                            {RECOMMENDED_OR_MODELS.map(model => (
+                              <option key={model.id} value={model.id}>{model.name}</option>
+                            ))}
+                            <option value="custom">Outro (digitar abaixo)...</option>
+                          </select>
+
+                          {(!RECOMMENDED_OR_MODELS.some(m => m.id === openRouterModel)) && (
+                            <input
+                              type="text"
+                              placeholder="ex: google/gemini-2.0-flash-001"
+                              className="w-full bg-[#F9F9F9] border border-black/5 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all animate-in fade-in"
+                              value={openRouterModel}
+                              onChange={(e) => setOpenRouterModel(e.target.value)}
+                            />
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
+
+                  <div className="space-y-4 pt-4 border-t border-black/5">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={16} className="text-black/40" />
+                      <span className="text-sm font-medium">Google Gemini</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Gemini API Key</label>
+                      <input
+                        type="password"
+                        placeholder="Insira sua chave do Google AI Studio..."
+                        className="w-full bg-[#F9F9F9] border border-black/5 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
+                        value={geminiApiKey}
+                        onChange={(e) => setGeminiApiKey(e.target.value)}
+                      />
+                      <p className="text-[10px] text-black/40 leading-relaxed">
+                        Obtenha sua chave gratuita em <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[#5A5A40] hover:underline">aistudio.google.com</a>
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -677,7 +910,7 @@ export default function App() {
             </div>
             <h1 className="text-lg font-semibold tracking-tight">AdCreative AI</h1>
           </div>
-          
+
           {/* Format Switcher */}
           <div className="flex bg-[#F5F5F0] p-1 rounded-xl border border-black/5">
             {FORMATS.map((format) => (
@@ -686,8 +919,8 @@ export default function App() {
                 onClick={() => { setActiveFormat(format.id as AdFormat); setResult(null); }}
                 className={cn(
                   "px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-widest transition-all",
-                  activeFormat === format.id 
-                    ? "bg-white text-black shadow-sm" 
+                  activeFormat === format.id
+                    ? "bg-white text-black shadow-sm"
                     : "text-black/40 hover:text-black/60"
                 )}
               >
@@ -697,7 +930,7 @@ export default function App() {
           </div>
 
           <nav className="hidden md:flex items-center gap-4 text-sm font-medium text-black/60">
-            <button 
+            <button
               onClick={() => setShowSettings(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl border border-black/5 hover:bg-black/5 transition-colors text-black/80"
             >
@@ -717,11 +950,11 @@ export default function App() {
                 Criador de {activeFormat === 'post' ? 'Posts' : activeFormat === 'stories' ? 'Stories' : 'Banners'}
               </h2>
               <p className="text-black/60">
-                {activeFormat === 'post' 
-                  ? 'Formato quadrado ideal para Instagram e redes sociais.' 
+                {activeFormat === 'post'
+                  ? 'Formato quadrado ideal para Instagram e redes sociais.'
                   : activeFormat === 'stories'
-                  ? 'Formato vertical ideal para Stories, Reels e TikTok.'
-                  : 'Formato panorâmico ideal para sites, blogs e cabeçalhos.'}
+                    ? 'Formato vertical ideal para Stories, Reels e TikTok.'
+                    : 'Formato panorâmico ideal para sites, blogs e cabeçalhos.'}
               </p>
             </div>
 
@@ -730,7 +963,7 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-bold uppercase tracking-widest text-black/40">Produtos</h3>
                   {activeFormat === 'banner' && products.length < 2 && (
-                    <button 
+                    <button
                       onClick={addProduct}
                       className="text-xs font-bold text-[#5A5A40] hover:underline flex items-center gap-1"
                     >
@@ -742,7 +975,7 @@ export default function App() {
                 {products.map((product, index) => (
                   <div key={product.id} className="space-y-4 p-4 border border-black/5 rounded-2xl relative bg-[#FBFBFA]">
                     {products.length > 1 && (
-                      <button 
+                      <button
                         onClick={() => removeProduct(index)}
                         className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-black/5 text-black/40 hover:bg-red-50 hover:text-red-500 transition-all z-10"
                       >
@@ -780,11 +1013,21 @@ export default function App() {
 
                     {product.image.preview && (
                       <div className="p-3 bg-white rounded-xl border border-black/5 flex gap-3 items-center">
-                        <div className="w-16 h-16 rounded-lg overflow-hidden border border-black/5 bg-white shrink-0">
+                        <div className="w-16 h-16 rounded-lg overflow-hidden border border-black/5 bg-white shrink-0 relative">
                           <img src={product.image.preview} className="w-full h-full object-cover" alt="Product Preview" />
+                          {product.badge !== 'none' && (
+                            <div className={cn(
+                              "absolute top-0 right-0 text-[7px] px-1.5 py-0.5 rounded-bl-lg font-bold shadow-sm animate-in fade-in zoom-in-50 whitespace-nowrap",
+                              product.badge === 'promo' ? "bg-red-600 text-white" :
+                              product.badge === '12x' ? "bg-emerald-600 text-white" :
+                              "bg-black text-white"
+                            )}>
+                              {BADGE_OPTIONS.find(b => b.id === product.badge)?.label.toUpperCase()}
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <input 
+                          <input
                             className="text-sm font-bold truncate w-full bg-transparent focus:outline-none"
                             value={product.name}
                             onChange={(e) => updateProduct(index, { name: e.target.value })}
@@ -814,12 +1057,7 @@ export default function App() {
                           <Tag size={12} /> Selo
                         </label>
                         <div className="flex gap-1">
-                          {[
-                            { id: 'none', label: 'X', icon: X },
-                            { id: 'a_vista', label: 'À Vista', icon: Banknote },
-                            { id: '12x', label: '12x', icon: CreditCard },
-                            { id: 'promo', label: 'Promo', icon: Percent },
-                          ].map((badge) => (
+                          {BADGE_OPTIONS.map((badge) => (
                             <button
                               key={badge.id}
                               onClick={() => updateProduct(index, { badge: badge.id as any })}
@@ -853,15 +1091,15 @@ export default function App() {
                       onClick={() => setSelectedStyle(style.id as AdStyle)}
                       className={cn(
                         "p-2 rounded-xl border text-left transition-all group overflow-hidden",
-                        selectedStyle === style.id 
-                          ? "border-[#1A1A1A] bg-[#1A1A1A] text-white shadow-md" 
+                        selectedStyle === style.id
+                          ? "border-[#1A1A1A] bg-[#1A1A1A] text-white shadow-md"
                           : "border-black/5 bg-[#F9F9F9] hover:border-black/20"
                       )}
                     >
                       <div className="aspect-square w-full rounded-lg overflow-hidden mb-2 relative">
-                        <img 
-                          src={style.preview} 
-                          alt={style.name} 
+                        <img
+                          src={style.preview}
+                          alt={style.name}
                           className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
                           referrerPolicy="no-referrer"
                         />
@@ -890,8 +1128,8 @@ export default function App() {
                 disabled={isGenerating}
                 className={cn(
                   "w-full py-4 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all",
-                  isGenerating 
-                    ? "bg-black/10 text-black/40 cursor-not-allowed" 
+                  isGenerating
+                    ? "bg-black/10 text-black/40 cursor-not-allowed"
                     : "bg-[#1A1A1A] text-white hover:bg-black active:scale-[0.98] shadow-lg shadow-black/10"
                 )}
               >
@@ -928,9 +1166,9 @@ export default function App() {
               <div className="h-full min-h-[600px] bg-white rounded-3xl shadow-sm border border-black/5 flex flex-col items-center justify-center p-12 text-center space-y-6 animate-pulse">
                 <div className={cn(
                   "w-full bg-black/5 rounded-2xl mb-8",
-                  activeFormat === 'post' ? "aspect-square" : 
-                  activeFormat === 'stories' ? "aspect-[9/16]" : 
-                  activeFormat === 'banner' ? "aspect-[144/41]" : "aspect-[3.2/1]"
+                  activeFormat === 'post' ? "aspect-square" :
+                    activeFormat === 'stories' ? "aspect-[9/16]" :
+                      activeFormat === 'banner' ? "aspect-[144/41]" : "aspect-[3.2/1]"
                 )} />
                 <div className="flex flex-col items-center gap-4 w-full">
                   <div className="h-4 w-3/4 bg-black/5 rounded-full" />
@@ -945,14 +1183,14 @@ export default function App() {
                 <div className="bg-white p-4 rounded-[2rem] shadow-xl border border-black/5">
                   <div className={cn(
                     "relative rounded-2xl overflow-hidden bg-black/5 group",
-                    activeFormat === 'post' ? "aspect-square" : 
-                    activeFormat === 'stories' ? "aspect-[9/16]" : 
-                    activeFormat === 'banner' ? "aspect-[144/41]" : "aspect-[3.2/1]"
+                    activeFormat === 'post' ? "aspect-square" :
+                      activeFormat === 'stories' ? "aspect-[9/16]" :
+                        activeFormat === 'banner' ? "aspect-[144/41]" : "aspect-[3.2/1]"
                   )}>
                     {result.imageUrl ? (
-                      <img 
-                        src={result.imageUrl} 
-                        alt="Ad Preview" 
+                      <img
+                        src={result.imageUrl}
+                        alt="Ad Preview"
                         className="w-full h-full object-cover"
                         referrerPolicy="no-referrer"
                       />
@@ -962,17 +1200,17 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="p-6 flex items-center justify-between">
                     <div className="flex gap-2">
-                      <button 
+                      <button
                         onClick={handleDownload}
                         className="p-2 hover:bg-black/5 rounded-lg transition-colors text-black/60"
                         title="Baixar Imagem"
                       >
                         <Download size={20} />
                       </button>
-                      <button 
+                      <button
                         onClick={handleShare}
                         className="p-2 hover:bg-black/5 rounded-lg transition-colors text-black/60"
                         title="Compartilhar"
@@ -980,7 +1218,7 @@ export default function App() {
                         <Share2 size={20} />
                       </button>
                     </div>
-                    <button 
+                    <button
                       onClick={handleGenerate}
                       className="text-sm font-semibold flex items-center gap-2 text-[#5A5A40] hover:underline"
                     >
