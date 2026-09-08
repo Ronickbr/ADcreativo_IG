@@ -19,19 +19,22 @@ async function startServer() {
   // API routes
   let openRouterConfig = {
     key: process.env.OPENROUTER_API_KEY || "",
-    model: "google/gemini-2.0-flash-001"
+    model: "google/gemini-2.0-flash-001",
+    baseUrl: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1"
   };
 
   app.post("/api/settings/openrouter", (req, res) => {
-    const { key, model } = req.body;
-    if (key) openRouterConfig.key = key;
-    if (model) openRouterConfig.model = model;
-    res.json({ success: true, hasKey: !!openRouterConfig.key });
+    const { key, model, baseUrl } = req.body;
+    if (key !== undefined) openRouterConfig.key = key;
+    if (model !== undefined) openRouterConfig.model = model;
+    if (baseUrl !== undefined) openRouterConfig.baseUrl = baseUrl;
+    res.json({ success: true, hasKey: !!openRouterConfig.key, baseUrl: openRouterConfig.baseUrl });
   });
 
   app.get("/api/settings/openrouter", (req, res) => {
     res.json({
       model: openRouterConfig.model,
+      baseUrl: openRouterConfig.baseUrl,
       hasKey: !!openRouterConfig.key,
       // We don't send the full key back for security
       keyMasked: openRouterConfig.key ? `${openRouterConfig.key.substring(0, 6)}...${openRouterConfig.key.substring(openRouterConfig.key.length - 4)}` : ""
@@ -55,12 +58,13 @@ async function startServer() {
   });
 
   app.post("/api/ai/generate", async (req, res) => {
-    const { prompt, images, model, isImage, aspectRatio } = req.body;
-    const apiKey = openRouterConfig.key;
+    const { prompt, images, model, isImage, aspectRatio, baseUrl: reqBaseUrl, apiKey: reqApiKey } = req.body;
+    const apiKey = reqApiKey || openRouterConfig.key;
     const targetModel = model || openRouterConfig.model;
+    const targetBaseUrl = (reqBaseUrl || openRouterConfig.baseUrl || "https://openrouter.ai/api/v1").trim();
 
     if (!apiKey) {
-      return res.status(401).json({ error: "OpenRouter API Key not configured on server" });
+      return res.status(401).json({ error: "API Key not configured on server or request" });
     }
 
     try {
@@ -85,7 +89,7 @@ async function startServer() {
       const isBananaModel = targetModel.includes("banana") || targetModel.includes("-image");
 
       if (isImage) {
-        // Required for OpenRouter image generation models like Gemini Nano Banana
+        // Required for OpenRouter/Router image generation models like Gemini Nano Banana
         body.modalities = ["image", "text"];
         body.image_config = {
           image_size: "1K", // Default to 1K
@@ -96,7 +100,13 @@ async function startServer() {
         body.response_format = { type: "json_object" };
       }
 
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      // Construct final URL
+      let endpoint = targetBaseUrl;
+      if (!endpoint.endsWith("/chat/completions")) {
+        endpoint = endpoint.replace(/\/+$/, "") + "/chat/completions";
+      }
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${apiKey}`,
