@@ -119,6 +119,13 @@ const RECOMMENDED_OR_MODELS = [
   { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash (General Purpose)' },
 ];
 
+const ROUTER_PROVIDERS = [
+  { id: 'openrouter', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1' },
+  { id: 'omnirouter', name: 'OmniRouter', baseUrl: 'https://api.omnirouter.ai/v1' },
+  { id: '9router', name: '9Router', baseUrl: 'https://api.9router.com/v1' },
+  { id: 'custom', name: 'Personalizado', baseUrl: '' },
+];
+
 const deobfuscate = (str: string | null) => {
   if (!str) return '';
   try {
@@ -156,6 +163,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [openRouterKey, setOpenRouterKey] = useState(() => deobfuscate(localStorage.getItem('openRouterKey')));
   const [openRouterModel, setOpenRouterModel] = useState(() => localStorage.getItem('openRouterModel') || 'google/gemini-2.0-flash-001');
+  const [openRouterBaseUrl, setOpenRouterBaseUrl] = useState(() => localStorage.getItem('openRouterBaseUrl') || 'https://openrouter.ai/api/v1');
   const [useOpenRouter, setUseOpenRouter] = useState(() => localStorage.getItem('useOpenRouter') === 'true');
   const [fallbackToOpenRouter, setFallbackToOpenRouter] = useState(() => localStorage.getItem('fallbackToOpenRouter') === 'true');
   const [geminiApiKey, setGeminiApiKey] = useState(() => deobfuscate(localStorage.getItem('geminiApiKey')));
@@ -167,7 +175,7 @@ export default function App() {
           await fetch('/api/settings/openrouter', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: openRouterKey, model: openRouterModel })
+            body: JSON.stringify({ key: openRouterKey, model: openRouterModel, baseUrl: openRouterBaseUrl })
           });
         }
       } catch (e) {
@@ -182,11 +190,12 @@ export default function App() {
       await fetch('/api/settings/openrouter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: openRouterKey, model: openRouterModel })
+        body: JSON.stringify({ key: openRouterKey, model: openRouterModel, baseUrl: openRouterBaseUrl })
       });
 
       localStorage.setItem('openRouterKey', obfuscate(openRouterKey));
       localStorage.setItem('openRouterModel', openRouterModel);
+      localStorage.setItem('openRouterBaseUrl', openRouterBaseUrl);
       localStorage.setItem('useOpenRouter', String(useOpenRouter));
       localStorage.setItem('fallbackToOpenRouter', String(fallbackToOpenRouter));
       localStorage.setItem('geminiApiKey', obfuscate(geminiApiKey));
@@ -196,6 +205,7 @@ export default function App() {
       // Fallback to local storage only if server fails
       localStorage.setItem('openRouterKey', obfuscate(openRouterKey));
       localStorage.setItem('openRouterModel', openRouterModel);
+      localStorage.setItem('openRouterBaseUrl', openRouterBaseUrl);
       localStorage.setItem('useOpenRouter', String(useOpenRouter));
       localStorage.setItem('fallbackToOpenRouter', String(fallbackToOpenRouter));
       localStorage.setItem('geminiApiKey', obfuscate(geminiApiKey));
@@ -308,7 +318,9 @@ export default function App() {
       body: JSON.stringify({
         prompt,
         images,
-        model: openRouterModel
+        model: openRouterModel,
+        baseUrl: openRouterBaseUrl,
+        apiKey: openRouterKey
       })
     });
 
@@ -480,7 +492,9 @@ export default function App() {
           body: JSON.stringify({
             prompt: promptText,
             images: imagesForOpenRouter,
-            model: copyModel
+            model: copyModel,
+            baseUrl: openRouterBaseUrl,
+            apiKey: openRouterKey
           })
         });
 
@@ -643,7 +657,9 @@ export default function App() {
             images: imageParts.map(p => ({ mimeType: p.inlineData.mimeType, data: p.inlineData.data })),
             model: openRouterModel,
             isImage: true,
-            aspectRatio: formatDetails.ratio
+            aspectRatio: formatDetails.ratio,
+            baseUrl: openRouterBaseUrl,
+            apiKey: openRouterKey
           })
         });
 
@@ -803,7 +819,7 @@ export default function App() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Globe size={16} className="text-black/40" />
-                      <span className="text-sm font-medium">Usar OpenRouter</span>
+                      <span className="text-sm font-medium">Usar AI Router (OpenRouter / OmniRouter / 9Router)</span>
                     </div>
                     <button
                       onClick={() => setUseOpenRouter(!useOpenRouter)}
@@ -822,7 +838,7 @@ export default function App() {
                   <div className="flex items-center justify-between pb-2">
                     <div className="flex items-center gap-2">
                       <History size={16} className="text-black/40" />
-                      <span className="text-sm font-medium">Fallback p/ OpenRouter</span>
+                      <span className="text-sm font-medium">Fallback p/ AI Router</span>
                     </div>
                     <button
                       onClick={() => setFallbackToOpenRouter(!fallbackToOpenRouter)}
@@ -841,10 +857,36 @@ export default function App() {
                   {useOpenRouter && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">OpenRouter API Key</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Provedor / Endpoint (Base URL)</label>
+                        <select
+                          className="w-full bg-[#F9F9F9] border border-black/5 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all appearance-none"
+                          value={ROUTER_PROVIDERS.find(p => p.baseUrl === openRouterBaseUrl)?.id || 'custom'}
+                          onChange={(e) => {
+                            const found = ROUTER_PROVIDERS.find(p => p.id === e.target.value);
+                            if (found && found.id !== 'custom') {
+                              setOpenRouterBaseUrl(found.baseUrl);
+                            }
+                          }}
+                        >
+                          {ROUTER_PROVIDERS.map(provider => (
+                            <option key={provider.id} value={provider.id}>{provider.name} {provider.baseUrl ? `(${provider.baseUrl})` : ''}</option>
+                          ))}
+                        </select>
+
+                        <input
+                          type="text"
+                          placeholder="https://openrouter.ai/api/v1 ou URL da sua API"
+                          className="w-full bg-[#F9F9F9] border border-black/5 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all mt-2"
+                          value={openRouterBaseUrl}
+                          onChange={(e) => setOpenRouterBaseUrl(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">API Key do Provedor</label>
                         <input
                           type="password"
-                          placeholder="sk-or-v1-..."
+                          placeholder="sk-or-v1-... ou sua chave de API"
                           className="w-full bg-[#F9F9F9] border border-black/5 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
                           value={openRouterKey}
                           onChange={(e) => setOpenRouterKey(e.target.value)}
@@ -852,7 +894,7 @@ export default function App() {
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Modelo OpenRouter</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 ml-1">Modelo</label>
                         <div className="space-y-2">
                           <select
                             className="w-full bg-[#F9F9F9] border border-black/5 rounded-xl py-3 px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all appearance-none"
