@@ -10,6 +10,45 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Security: SSRF protection helper to block requests to private/internal addresses
+function isSafeUrl(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    // Strip brackets from IPv6 hostnames like "[::1]" -> "::1"
+    const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "0.0.0.0" ||
+      hostname.endsWith(".local") ||
+      hostname.endsWith(".internal") ||
+      hostname.endsWith(".nip.io") ||
+      hostname.endsWith(".sslip.io")
+    ) return false;
+
+    const ipMatch = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (ipMatch) {
+      const [, p1, p2] = ipMatch.map(Number);
+      if (
+        p1 === 10 || p1 === 127 || p1 === 0 ||
+        (p1 === 172 && p2 >= 16 && p2 <= 31) ||
+        (p1 === 192 && p2 === 168) ||
+        (p1 === 169 && p2 === 254) // AWS/GCP cloud metadata service
+      ) return false;
+    }
+
+    // Check octal, hex, or integer IP formats
+    if (/^(0x[0-9a-f]+|0[0-7]+|\d+)$/i.test(hostname)) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -40,7 +79,9 @@ async function startServer() {
 
   app.get("/api/proxy-image", async (req, res) => {
     const { url } = req.query;
-    if (!url) return res.status(400).send("URL is required");
+    if (!url || typeof url !== "string" || !isSafeUrl(url)) {
+      return res.status(400).send("Invalid or restricted URL");
+    }
     try {
       const response = await fetch(url as string);
       if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
@@ -126,8 +167,8 @@ async function startServer() {
 
   app.post("/api/scrape", async (req, res) => {
     const { url } = req.body;
-    if (!url) {
-      return res.status(400).json({ error: "URL is required" });
+    if (!url || typeof url !== "string" || !isSafeUrl(url)) {
+      return res.status(400).json({ error: "Invalid or restricted URL" });
     }
 
     try {
@@ -169,7 +210,7 @@ async function startServer() {
 
       let base64Image = null;
       let mimeType = null;
-      if (imageUrl) {
+      if (imageUrl && isSafeUrl(imageUrl)) {
         try {
           const imgRes = await fetch(imageUrl);
           if (imgRes.ok) {
