@@ -1,92 +1,176 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+
+# AdCreative AI
+
+### Transforme fotos e dados de produtos em campanhas publicitárias prontas para vender.
+
+[![Versão](https://img.shields.io/badge/versão-1.0.0-d8ff3e?style=flat-square&labelColor=171714)](https://github.com/Ronickbr/ADcreativo_IG/releases)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Licença](https://img.shields.io/badge/licença-Apache--2.0-blue?style=flat-square)](#licença)
+
 </div>
 
-# 🚀 AdCreative AI
+![Prévia da interface do AdCreative AI](docs/app-preview.svg)
 
-**AdCreative AI** é um motor de inteligência de vendas e direção de arte que transforma inputs técnicos e links de produtos em campanhas de marketing de alta conversão. Utilizando o poder do **Google Gemini**, o sistema gera não apenas o copy persuasivo, mas também a arte visual completa e otimizada para diferentes formatos.
+> A imagem acima é uma prévia vetorial fiel à interface da versão 1.0.0.
 
-## ✨ Funcionalidades Principais
+## Sobre o projeto
 
-- 🎨 **Direção de Arte Multimodal**: Gere artes para Post (1:1), Stories (9:16), Banner Web e Banner Mobile.
-- ⚡ **Scraping Inteligente**: Cole o link do seu produto e o sistema extrai automaticamente nome, descrição e imagens.
-- 🎭 **Estilos Visuais Exclusivos**:
-  - **Gastronomia Premium**: Sofisticação, tons escuros e detalhes em ouro.
-  - **Experiência VIP**: Impacto dramático, contrastes altos e atmosfera cinematográfica.
-  - **Vanguarda Tech**: Minimalismo futurista, tons de gelo e acentos em azul elétrico.
-- 🏷️ **Badges de Conversão**: Adicione selos de "12x Sem Juros", "Promoção" ou "À Vista" com um clique.
-- 🤖 **IA Flexível**: Suporte nativo ao Google Gemini com fallback automático para OpenRouter.
+O **AdCreative AI** é um estúdio de criação multimodal para gerar anúncios a partir da imagem, do link e das informações técnicas de um produto. A aplicação cria a estratégia de copy, os benefícios, a chamada para ação, a legenda, as hashtags e a composição visual final.
 
-## 🚀 Começo Rápido
+O fluxo foi pensado para e-commerce, varejo e equipes de marketing que precisam produzir peças rapidamente sem perder a identidade do produto.
 
-### Pré-requisitos
-- Node.js (v18+)
-- Uma chave de API do [Google AI Studio](https://aistudio.google.com/) ou [OpenRouter](https://openrouter.ai/).
+## Principais recursos
 
-### Instalação
+- Importação automática de título, descrição e imagem por URL.
+- Upload manual de produto, cenário e logotipo.
+- Preservação explícita das características visuais do produto no prompt.
+- Formatos para Instagram, Stories/Reels, banner web e banner mobile.
+- Estilos Gastronomia Premium, Experiência VIP e Vanguarda Tech.
+- Preços e selos de promoção, parcelamento ou pagamento à vista.
+- Copy completa com headline, benefícios, CTA, legenda e hashtags.
+- Download, compartilhamento e regeneração do criativo.
+- Integração com Google Gemini e OpenRouter.
+- Interface responsiva para desktop e dispositivos móveis.
 
-1.  **Clone o repositório**:
-    ```bash
-    git clone https://github.com/Ronickbr/ADcreativo_IG.git
-    cd ADcreativo_IG
-    ```
+## Arquitetura
 
-2.  **Instale as dependências**:
-    ```bash
-    npm install
-    ```
+| Camada | Tecnologias | Responsabilidade |
+|---|---|---|
+| Interface | React 19, TypeScript, Tailwind CSS 4, Motion | Formulário, direção visual, prévia e resultados |
+| Backend | Node.js, Express | API, segurança, scraping e integração com IA |
+| Inteligência artificial | Google GenAI, OpenRouter | Estratégia, copy e geração de imagem |
+| Extração | Cheerio | Leitura de metadados de páginas de produto |
+| Qualidade | TypeScript, Node Test Runner | Tipagem, testes e build |
 
-3.  **Configure o ambiente**:
-    Crie um arquivo `.env` (ou edite o `.env.local`) e adicione suas chaves:
-    ```env
-    GEMINI_API_KEY=sua_chave_aqui
-    # ou
-    OPENROUTER_API_KEY=sua_chave_aqui
-    ```
+### Estrutura principal
 
-4.  **Inicie o servidor de desenvolvimento**:
-    ```bash
-    npm run dev
-    ```
+```text
+.
+├── docs/
+│   └── app-preview.svg
+├── src/
+│   ├── lib/
+│   │   ├── api.ts
+│   │   └── urlSafety.ts
+│   ├── App.tsx
+│   ├── index.css
+│   └── main.tsx
+├── tests/
+│   ├── api.test.ts
+│   └── urlSafety.test.ts
+├── server.ts
+├── CHANGELOG.md
+└── implementation_plan.md
+```
 
-## 🛠️ Tecnologias Utilizadas
+## Requisitos
 
-- **Frontend**: React 19, Vite, Tailwind CSS 4.
-- **Animações**: Framer Motion (Motion).
-- **Backend**: Express, Better-SQLite3 (cache/settings).
-- **IA**: Google GenAI SDK, OpenRouter API.
-- **Utilidades**: Lucide React (ícones), Cheerio (scraping).
+- Node.js 20 ou superior.
+- npm 10 ou superior.
+- Uma chave do Google Gemini ou OpenRouter.
 
-## 🔐 Segurança e configuração
+## Instalação
 
-A opção recomendada é manter as chaves no `.env` do servidor. Também é possível informá-las pela interface; nesse caso elas permanecem apenas em `sessionStorage` durante a aba atual e são enviadas somente ao backend para a chamada solicitada.
+```bash
+git clone https://github.com/Ronickbr/ADcreativo_IG.git
+cd ADcreativo_IG
+npm install
+cp .env.example .env
+```
 
-- Nunca coloque chaves reais no `.env.example` ou em arquivos versionados.
-- O proxy e o importador aceitam somente URLs públicas HTTP/HTTPS e aplicam timeout e limites de tamanho.
-- O servidor inclui rate limit básico, headers de segurança e respostas de erro normalizadas.
-- O endpoint `GET /api/health` pode ser usado por plataformas de deploy.
+Configure pelo menos um provedor no arquivo `.env`:
 
-## ✅ Qualidade
+```env
+GEMINI_API_KEY=
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=google/gemini-2.5-flash-image
+PORT=3000
+```
+
+Inicie o ambiente de desenvolvimento:
+
+```bash
+npm run dev
+```
+
+Acesse `http://localhost:3000`.
+
+## Comandos
+
+| Comando | Descrição |
+|---|---|
+| `npm run dev` | Inicia Express e Vite em modo de desenvolvimento |
+| `npm run lint` | Verifica os tipos sem gerar arquivos |
+| `npm run test` | Executa os testes automatizados |
+| `npm run build` | Gera o bundle de produção |
+| `npm run check` | Executa lint, testes e build |
+| `npm run preview` | Abre a prévia do bundle |
+
+## API
+
+| Método | Rota | Finalidade |
+|---|---|---|
+| `GET` | `/api/health` | Verificação de saúde do servidor |
+| `GET` | `/api/settings` | Informa quais provedores estão configurados |
+| `POST` | `/api/scrape` | Importa dados públicos de uma página de produto |
+| `GET` | `/api/proxy-image` | Obtém uma imagem pública com validação |
+| `POST` | `/api/ai/generate` | Gera copy ou imagem pelo provedor escolhido |
+
+## Segurança
+
+- Chaves do servidor não são enviadas ao navegador.
+- Chaves inseridas pela interface ficam apenas em `sessionStorage`.
+- URLs locais, privadas e com protocolos inseguros são bloqueadas.
+- Redirecionamentos são revalidados para impedir SSRF indireto.
+- Downloads possuem timeout e limites de tamanho.
+- A API aplica limite básico de requisições e headers de segurança.
+- Erros internos não são expostos diretamente ao cliente.
+
+Nunca envie arquivos `.env`, tokens ou chaves de API para o GitHub. Caso uma chave seja exposta, revogue-a imediatamente no provedor.
+
+## Testes
 
 ```bash
 npm run check
 ```
 
-Esse comando executa a verificação do TypeScript, os testes automatizados e o build de produção.
+A versão 1.0.0 possui testes para:
 
-## 🧱 Arquitetura
+- Parsing de respostas JSON puras e cercadas por Markdown.
+- Mensagens amigáveis para respostas inválidas.
+- Bloqueio de faixas IPv4 e IPv6 privadas ou reservadas.
+- Liberação de endereços IPv4 públicos.
 
-- `server.ts`: API Express, integrações de IA, scraping e proxy seguro.
-- `src/App.tsx`: fluxo de criação e interface responsiva.
-- `src/lib/api.ts`: cliente de API e normalização das respostas da IA.
-- `src/lib/urlSafety.ts`: validação de URLs e bloqueio de redes privadas.
-- `tests/`: testes unitários de segurança e parsing.
+## Versionamento
 
-## 📄 Licença
+O projeto segue [Versionamento Semântico](https://semver.org/lang/pt-BR/):
 
-Este projeto está sob a licença [Apache-2.0](LICENSE).
+- **MAJOR**: alterações incompatíveis.
+- **MINOR**: novas funcionalidades compatíveis.
+- **PATCH**: correções compatíveis.
+
+Consulte o [CHANGELOG.md](CHANGELOG.md) para o histórico.
+
+## Roadmap
+
+As próximas melhorias são acompanhadas nas [Issues](https://github.com/Ronickbr/ADcreativo_IG/issues).
+
+## Contribuição
+
+1. Crie um fork ou uma branch a partir da `main`.
+2. Faça alterações pequenas e objetivas.
+3. Execute `npm run check`.
+4. Use commits descritivos.
+5. Abra um pull request explicando contexto, mudanças e validações.
+
+## Licença
+
+Distribuído sob a licença Apache 2.0. Consulte o arquivo `LICENSE` para mais informações.
 
 ---
+
 <div align="center">
-Desenvolvido com ❤️ por Antigravity
+Desenvolvido para transformar informações técnicas em campanhas visuais de alto impacto.
 </div>
