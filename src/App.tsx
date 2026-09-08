@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import {
   Camera,
@@ -133,6 +133,134 @@ const obfuscate = (str: string) => {
   return btoa(str).split('').reverse().join('');
 };
 
+// ⚡ Performance Optimization: Memoized ProductCard component to prevent unnecessary re-renders
+// of form controls, background previews, and style selectors when typing into product inputs.
+interface ProductCardProps {
+  product: ProductData;
+  index: number;
+  totalProducts: number;
+  isFetching: boolean;
+  onUpdate: (index: number, updates: Partial<ProductData>) => void;
+  onRemove: (index: number) => void;
+  onFetch: (index: number) => void;
+}
+
+const ProductCardItem = React.memo(function ProductCardItem({
+  product,
+  index,
+  totalProducts,
+  isFetching,
+  onUpdate,
+  onRemove,
+  onFetch,
+}: ProductCardProps) {
+  return (
+    <div className="space-y-4 p-4 border border-black/5 rounded-2xl relative bg-[#FBFBFA]">
+      {totalProducts > 1 && (
+        <button
+          onClick={() => onRemove(index)}
+          className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-black/5 text-black/40 hover:bg-red-50 hover:text-red-500 transition-all z-10"
+        >
+          <X size={14} />
+        </button>
+      )}
+
+      <div className="space-y-3">
+        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
+          <Globe size={12} /> Link do Produto {totalProducts > 1 ? `#${index + 1}` : ''}
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="url"
+            placeholder="Cole o link do produto aqui..."
+            className="flex-1 bg-white border border-black/5 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
+            value={product.url}
+            onChange={(e) => onUpdate(index, { url: e.target.value })}
+          />
+          <button
+            onClick={() => onFetch(index)}
+            disabled={isFetching || !product.url}
+            className={cn(
+              "px-4 rounded-xl font-semibold transition-all flex items-center gap-2",
+              isFetching || !product.url
+                ? "bg-black/5 text-black/20 cursor-not-allowed"
+                : "bg-[#5A5A40] text-white hover:bg-[#4A4A30]"
+            )}
+          >
+            {isFetching ? <Loader2 className="animate-spin" size={16} /> : <Zap size={16} />}
+            <span className="hidden sm:inline">Buscar</span>
+          </button>
+        </div>
+      </div>
+
+      {product.image.preview && (
+        <div className="p-3 bg-white rounded-xl border border-black/5 flex gap-3 items-center">
+          <div className="w-16 h-16 rounded-lg overflow-hidden border border-black/5 bg-white shrink-0 relative">
+            <img src={product.image.preview} className="w-full h-full object-cover" alt="Product Preview" />
+            {product.badge !== 'none' && (
+              <div className={cn(
+                "absolute top-0 right-0 text-[7px] px-1.5 py-0.5 rounded-bl-lg font-bold shadow-sm animate-in fade-in zoom-in-50 whitespace-nowrap",
+                product.badge === 'promo' ? "bg-red-600 text-white" :
+                product.badge === '12x' ? "bg-emerald-600 text-white" :
+                "bg-black text-white"
+              )}>
+                {BADGE_OPTIONS.find(b => b.id === product.badge)?.label.toUpperCase()}
+              </div>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <input
+              className="text-sm font-bold truncate w-full bg-transparent focus:outline-none"
+              value={product.name}
+              onChange={(e) => onUpdate(index, { name: e.target.value })}
+              placeholder="Nome do produto"
+            />
+            <p className="text-[10px] text-black/40 line-clamp-1 mt-1">{product.techData || 'Descrição detectada...'}</p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
+            <Banknote size={12} /> Valor
+          </label>
+          <input
+            type="text"
+            placeholder="Ex: R$ 4.500,00"
+            className="w-full bg-white border border-black/5 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
+            value={product.price}
+            onChange={(e) => onUpdate(index, { price: e.target.value })}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
+            <Tag size={12} /> Selo
+          </label>
+          <div className="flex gap-1">
+            {BADGE_OPTIONS.map((badge) => (
+              <button
+                key={badge.id}
+                onClick={() => onUpdate(index, { badge: badge.id as any })}
+                className={cn(
+                  "flex-1 py-2 px-1 rounded-lg border text-[9px] font-bold flex flex-col items-center gap-0.5 transition-all",
+                  product.badge === badge.id
+                    ? "border-[#1A1A1A] bg-[#1A1A1A] text-white"
+                    : "border-black/5 bg-white text-black/40 hover:border-black/20"
+                )}
+              >
+                <badge.icon size={12} />
+                {badge.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export default function App() {
   const [activeFormat, setActiveFormat] = useState<AdFormat>('post');
   const [bgImage, setBgImage] = useState<ImageState>({ file: null, preview: null, base64: null });
@@ -239,9 +367,14 @@ export default function App() {
     }
   };
 
-  const handleFetchProduct = async (index: number) => {
-    const product = products[index];
-    if (!product.url) return;
+  const productsRef = useRef(products);
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
+
+  const handleFetchProduct = useCallback(async (index: number) => {
+    const product = productsRef.current[index];
+    if (!product || !product.url) return;
     setIsFetchingIndex(index);
     setError(null);
     try {
@@ -275,29 +408,33 @@ export default function App() {
     } finally {
       setIsFetchingIndex(null);
     }
-  };
+  }, []);
 
-  const addProduct = () => {
-    if (products.length >= 2) return; // Limit to 2 for now as per user images
-    setProducts([...products, {
-      id: Math.random().toString(36).substr(2, 9),
-      image: { file: null, preview: null, base64: null },
-      name: '',
-      url: '',
-      techData: '',
-      price: '',
-      badge: 'none'
-    }]);
-  };
+  const addProduct = useCallback(() => {
+    setProducts(prev => {
+      if (prev.length >= 2) return prev;
+      return [...prev, {
+        id: Math.random().toString(36).substr(2, 9),
+        image: { file: null, preview: null, base64: null },
+        name: '',
+        url: '',
+        techData: '',
+        price: '',
+        badge: 'none'
+      }];
+    });
+  }, []);
 
-  const removeProduct = (index: number) => {
-    if (products.length <= 1) return;
-    setProducts(products.filter((_, i) => i !== index));
-  };
+  const removeProduct = useCallback((index: number) => {
+    setProducts(prev => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((_, i) => i !== index);
+    });
+  }, []);
 
-  const updateProduct = (index: number, updates: Partial<ProductData>) => {
+  const updateProduct = useCallback((index: number, updates: Partial<ProductData>) => {
     setProducts(prev => prev.map((p, i) => i === index ? { ...p, ...updates } : p));
-  };
+  }, []);
 
   const generateWithOpenRouter = async (prompt: string, images: { mimeType: string, data: string }[]) => {
     const response = await fetch("/api/ai/generate", {
@@ -987,109 +1124,16 @@ export default function App() {
                 </div>
 
                 {products.map((product, index) => (
-                  <div key={product.id} className="space-y-4 p-4 border border-black/5 rounded-2xl relative bg-[#FBFBFA]">
-                    {products.length > 1 && (
-                      <button
-                        onClick={() => removeProduct(index)}
-                        className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-black/5 text-black/40 hover:bg-red-50 hover:text-red-500 transition-all z-10"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
-                        <Globe size={12} /> Link do Produto {products.length > 1 ? `#${index + 1}` : ''}
-                      </label>
-                      <div className="flex gap-2">
-                        <input
-                          type="url"
-                          placeholder="Cole o link do produto aqui..."
-                          className="flex-1 bg-white border border-black/5 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
-                          value={product.url}
-                          onChange={(e) => updateProduct(index, { url: e.target.value })}
-                        />
-                        <button
-                          onClick={() => handleFetchProduct(index)}
-                          disabled={isFetchingIndex === index || !product.url}
-                          className={cn(
-                            "px-4 rounded-xl font-semibold transition-all flex items-center gap-2",
-                            isFetchingIndex === index || !product.url
-                              ? "bg-black/5 text-black/20 cursor-not-allowed"
-                              : "bg-[#5A5A40] text-white hover:bg-[#4A4A30]"
-                          )}
-                        >
-                          {isFetchingIndex === index ? <Loader2 className="animate-spin" size={16} /> : <Zap size={16} />}
-                          <span className="hidden sm:inline">Buscar</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {product.image.preview && (
-                      <div className="p-3 bg-white rounded-xl border border-black/5 flex gap-3 items-center">
-                        <div className="w-16 h-16 rounded-lg overflow-hidden border border-black/5 bg-white shrink-0 relative">
-                          <img src={product.image.preview} className="w-full h-full object-cover" alt="Product Preview" />
-                          {product.badge !== 'none' && (
-                            <div className={cn(
-                              "absolute top-0 right-0 text-[7px] px-1.5 py-0.5 rounded-bl-lg font-bold shadow-sm animate-in fade-in zoom-in-50 whitespace-nowrap",
-                              product.badge === 'promo' ? "bg-red-600 text-white" :
-                              product.badge === '12x' ? "bg-emerald-600 text-white" :
-                              "bg-black text-white"
-                            )}>
-                              {BADGE_OPTIONS.find(b => b.id === product.badge)?.label.toUpperCase()}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <input
-                            className="text-sm font-bold truncate w-full bg-transparent focus:outline-none"
-                            value={product.name}
-                            onChange={(e) => updateProduct(index, { name: e.target.value })}
-                            placeholder="Nome do produto"
-                          />
-                          <p className="text-[10px] text-black/40 line-clamp-1 mt-1">{product.techData || 'Descrição detectada...'}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
-                          <Banknote size={12} /> Valor
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Ex: R$ 4.500,00"
-                          className="w-full bg-white border border-black/5 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 transition-all"
-                          value={product.price}
-                          onChange={(e) => updateProduct(index, { price: e.target.value })}
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-black/40 flex items-center gap-2">
-                          <Tag size={12} /> Selo
-                        </label>
-                        <div className="flex gap-1">
-                          {BADGE_OPTIONS.map((badge) => (
-                            <button
-                              key={badge.id}
-                              onClick={() => updateProduct(index, { badge: badge.id as any })}
-                              className={cn(
-                                "flex-1 py-2 px-1 rounded-lg border text-[9px] font-bold flex flex-col items-center gap-0.5 transition-all",
-                                product.badge === badge.id
-                                  ? "border-[#1A1A1A] bg-[#1A1A1A] text-white"
-                                  : "border-black/5 bg-white text-black/40 hover:border-black/20"
-                              )}
-                            >
-                              <badge.icon size={12} />
-                              {badge.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <ProductCardItem
+                    key={product.id}
+                    product={product}
+                    index={index}
+                    totalProducts={products.length}
+                    isFetching={isFetchingIndex === index}
+                    onUpdate={updateProduct}
+                    onRemove={removeProduct}
+                    onFetch={handleFetchProduct}
+                  />
                 ))}
               </div>
 
