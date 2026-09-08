@@ -1,13 +1,68 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Cormorant Garamond", serif;
+@theme { --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif; }
+@layer base {
+  * { box-sizing: border-box; }
+  html { color-scheme: light; }
+  body { margin: 0; min-width: 320px; background: #f3f2ed; font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+  button, input, textarea, select { font: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  :focus-visible { outline: 3px solid rgb(159 195 0 / .35); outline-offset: 2px; }
 }
 
-@layer base {
-  body {
-    @apply antialiased;
-  }
+@layer components {
+  .eyebrow { @apply inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[.2em] text-zinc-500; }
+  .label { @apply text-[10px] font-bold uppercase tracking-[.16em] text-zinc-500; }
+  .panel { @apply overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_1px_1px_rgba(0,0,0,.02),0_10px_35px_rgba(0,0,0,.035)]; }
+  .panel-head { @apply flex min-h-20 items-center gap-3 border-b border-zinc-100 px-4 py-4 sm:px-6; }
+  .panel-head h2 { @apply text-base font-semibold tracking-tight; }
+  .panel-head p { @apply mt-0.5 text-xs text-zinc-500; }
+  .panel-head .text-button { @apply ml-auto; }
+  .step { @apply flex size-9 shrink-0 items-center justify-center rounded-xl bg-zinc-950 text-xs font-bold text-[#d8ff3e]; }
+  .product-card { @apply rounded-2xl border border-zinc-200 bg-[#fafaf8] p-4 sm:p-5; }
+  .input { @apply w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-3 text-sm text-zinc-900 shadow-sm transition placeholder:text-zinc-400 hover:border-zinc-300 focus:border-zinc-500 focus:outline-none; }
+  .input-wrap { @apply flex w-full items-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-3.5 shadow-sm transition focus-within:border-zinc-500; }
+  .input-wrap svg { @apply shrink-0 text-zinc-400; }
+  .input-wrap input { @apply min-w-0 flex-1 bg-transparent py-3 text-sm outline-none placeholder:text-zinc-400; }
+  .square-button { @apply grid size-11.5 shrink-0 place-items-center rounded-xl bg-zinc-950 text-white transition hover:bg-zinc-800 disabled:bg-zinc-200 disabled:text-zinc-400; }
+  .icon-button { @apply inline-flex size-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50; }
+  .text-button { @apply inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 hover:text-black; }
+  .upload-zone { @apply relative flex h-[156px] w-full items-center justify-center gap-3 overflow-hidden rounded-xl border border-dashed border-zinc-300 bg-white text-left text-zinc-500 transition hover:border-zinc-500 hover:bg-zinc-50; }
+  .upload-zone b { @apply block text-xs text-zinc-700; }
+  .upload-zone small { @apply mt-0.5 block text-[10px] text-zinc-400; }
+  .icon-box { @apply inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-700; }
+  .style-card { @apply relative flex min-h-40 flex-col rounded-xl border border-zinc-200 bg-white p-2 text-left transition hover:-translate-y-0.5 hover:border-zinc-400; }
+  .style-card.selected { @apply border-zinc-950 ring-1 ring-zinc-950; }
+  .style-card b { @apply mt-3 px-1 text-xs; }
+  .style-card small { @apply mt-1 px-1 text-[10px] leading-4 text-zinc-500; }
+  .style-art { @apply flex h-20 items-center justify-center rounded-lg text-white; }
+  .generate-button { @apply flex min-h-13 w-full items-center justify-center gap-2 rounded-xl bg-[#d8ff3e] px-5 text-sm font-bold text-zinc-950 shadow-[0_8px_24px_rgba(166,204,0,.18)] transition hover:bg-[#c6ed2b] active:scale-[.995] disabled:bg-zinc-200 disabled:text-zinc-500; }
+  .generate-button span { @apply ml-1 hidden text-xs font-medium opacity-60 sm:inline; }
+  .error-box { @apply flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700; }
+  .error-box button { @apply ml-auto shrink-0; }
+  .progress-card { @apply w-full rounded-xl border border-zinc-200 bg-white p-4 text-xs text-zinc-500 shadow-sm md:w-58; }
+  .progress-card b { @apply text-zinc-950; }
+  .format-tab { @apply flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-zinc-400 transition hover:text-white; }
+  .format-tab small { @apply text-[9px] text-zinc-600; }
+  .format-tab.active { @apply bg-white text-zinc-950 shadow-sm; }
+  .format-tab.active small { @apply text-zinc-400; }
+  .secondary-dark { @apply inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-white/10; }
+  .preview-shell { @apply overflow-hidden rounded-2xl bg-[#171714] p-3 shadow-2xl shadow-black/10 sm:p-4; }
+  .preview-top { @apply flex items-center justify-between px-2 pb-4 text-xs text-zinc-500; }
+  .preview-canvas { @apply mx-auto overflow-hidden rounded-xl border border-white/10 bg-[#0e0e0c]; }
+  .ratio-post { aspect-ratio: 1/1; max-height: 650px; }
+  .ratio-stories { aspect-ratio: 9/16; max-height: 720px; }
+  .ratio-banner { aspect-ratio: 144/41; }
+  .ratio-banner_mobile { aspect-ratio: 3.2/1; }
+  .preview-actions { @apply grid grid-cols-3 gap-2 pt-3; }
+  .preview-actions button { @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 px-2 py-2.5 text-xs font-semibold text-zinc-300 transition hover:bg-white/5 hover:text-white; }
+  .toast { @apply fixed left-1/2 top-4 z-[70] flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl bg-zinc-950 px-4 py-3 text-xs font-semibold text-white shadow-xl; }
+  .security-note { @apply mt-5 flex gap-3 rounded-xl border border-lime-200 bg-lime-50 p-4 text-sm text-zinc-700; }
+  .security-note svg { @apply mt-0.5 shrink-0 text-[#779300]; }
+  .security-note b { @apply block text-zinc-900; }
+  .provider-tab { @apply flex-1 rounded-lg px-3 py-2.5 text-xs font-semibold text-zinc-500 transition; }
+  .provider-tab.active { @apply bg-white text-zinc-950 shadow-sm; }
+  .status-dot { @apply ml-2 rounded-full bg-lime-100 px-2 py-1 text-[9px] tracking-normal text-[#647b00]; }
 }
