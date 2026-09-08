@@ -991,7 +991,8 @@ export default function App() {
                     {products.length > 1 && (
                       <button
                         onClick={() => removeProduct(index)}
-                        className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-black/5 text-black/40 hover:bg-red-50 hover:text-red-500 transition-all z-10"
+                        aria-label={`Remover Produto ${index + 1}`}
+                        className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-black/5 text-black/40 hover:bg-red-50 hover:text-red-500 transition-all z-10 focus-visible:ring-2 focus-visible:ring-[#5A5A40] focus-visible:outline-none"
                       >
                         <X size={14} />
                       </button>
@@ -1075,8 +1076,10 @@ export default function App() {
                             <button
                               key={badge.id}
                               onClick={() => updateProduct(index, { badge: badge.id as any })}
+                              aria-label={badge.id === 'none' ? 'Nenhum selo' : badge.label}
+                              aria-pressed={product.badge === badge.id}
                               className={cn(
-                                "flex-1 py-2 px-1 rounded-lg border text-[9px] font-bold flex flex-col items-center gap-0.5 transition-all",
+                                "flex-1 py-2 px-1 rounded-lg border text-[9px] font-bold flex flex-col items-center gap-0.5 transition-all focus-visible:ring-2 focus-visible:ring-[#5A5A40] focus-visible:outline-none",
                                 product.badge === badge.id
                                   ? "border-[#1A1A1A] bg-[#1A1A1A] text-white"
                                   : "border-black/5 bg-white text-black/40 hover:border-black/20"
@@ -1103,8 +1106,10 @@ export default function App() {
                     <button
                       key={style.id}
                       onClick={() => setSelectedStyle(style.id as AdStyle)}
+                      aria-label={style.name}
+                      aria-pressed={selectedStyle === style.id}
                       className={cn(
-                        "p-2 rounded-xl border text-left transition-all group overflow-hidden",
+                        "p-2 rounded-xl border text-left transition-all group overflow-hidden focus-visible:ring-2 focus-visible:ring-[#5A5A40] focus-visible:outline-none",
                         selectedStyle === style.id
                           ? "border-[#1A1A1A] bg-[#1A1A1A] text-white shadow-md"
                           : "border-black/5 bg-[#F9F9F9] hover:border-black/20"
