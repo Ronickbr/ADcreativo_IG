@@ -40,6 +40,8 @@
     Crie um arquivo `.env` (ou edite o `.env.local`) e adicione suas chaves:
     ```env
     GEMINI_API_KEY=sua_chave_aqui
+    # ou
+    OPENROUTER_API_KEY=sua_chave_aqui
     ```
 
 4.  **Inicie o servidor de desenvolvimento**:
@@ -55,12 +57,30 @@
 - **IA**: Google GenAI SDK, OpenRouter API.
 - **Utilidades**: Lucide React (ícones), Cheerio (scraping).
 
-## ⚙️ Configuração
+## 🔐 Segurança e configuração
 
-A aplicação permite configurar a IA diretamente pela interface:
-- **Gemini API Key**: Chave principal para geração de alta fidelidade.
-- **OpenRouter Fallback**: Use modelos como `Gemini 2.5 Flash Image` ou `Claude` caso a API principal esteja instável.
-- **Modo Proxy**: Gerenciamento de imagens e scraping para evitar problemas de CORS.
+A opção recomendada é manter as chaves no `.env` do servidor. Também é possível informá-las pela interface; nesse caso elas permanecem apenas em `sessionStorage` durante a aba atual e são enviadas somente ao backend para a chamada solicitada.
+
+- Nunca coloque chaves reais no `.env.example` ou em arquivos versionados.
+- O proxy e o importador aceitam somente URLs públicas HTTP/HTTPS e aplicam timeout e limites de tamanho.
+- O servidor inclui rate limit básico, headers de segurança e respostas de erro normalizadas.
+- O endpoint `GET /api/health` pode ser usado por plataformas de deploy.
+
+## ✅ Qualidade
+
+```bash
+npm run check
+```
+
+Esse comando executa a verificação do TypeScript, os testes automatizados e o build de produção.
+
+## 🧱 Arquitetura
+
+- `server.ts`: API Express, integrações de IA, scraping e proxy seguro.
+- `src/App.tsx`: fluxo de criação e interface responsiva.
+- `src/lib/api.ts`: cliente de API e normalização das respostas da IA.
+- `src/lib/urlSafety.ts`: validação de URLs e bloqueio de redes privadas.
+- `tests/`: testes unitários de segurança e parsing.
 
 ## 📄 Licença
 
