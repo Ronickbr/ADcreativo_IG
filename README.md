@@ -174,3 +174,40 @@ Distribuído sob a licença Apache 2.0. Consulte o arquivo `LICENSE` para mais i
 <div align="center">
 Desenvolvido para transformar informações técnicas em campanhas visuais de alto impacto.
 </div>
+
+## Prompts orientados à venda
+
+Os três estilos mantêm a aparência original e recebem estratégias próprias:
+
+| Estilo | Foco comercial |
+|---|---|
+| Gastronomia Premium | Dor operacional, função do produto e produtividade sustentada pelos dados |
+| Experiência VIP | Resultado desejado, apresentação e experiência de uso |
+| Vanguarda Tech | Objeções de compra, compatibilidade e clareza técnica |
+
+Os prompts de copy e imagem ficam em `src/lib/adPrompts.ts`. Ambos aplicam gancho visual, benefício antes da especificação, informação comercial disponível, evidência fornecida e um CTA único. Preços, condições, avaliações, garantias e resultados não devem ser inventados. Sem canal definido, a chamada padrão é “Solicite um orçamento”.
+
+### Como fornecer um briefing mais preciso
+
+No campo existente **Informações técnicas**, inclua dados do produto e, opcionalmente, contexto comercial identificado. Exemplo de estrutura (substitua pelos fatos reais; remova o que não souber):
+
+```text
+Ficha técnica: ...
+Público: ...
+Dor principal: ...
+Benefício comprovável: ...
+Objeção: ...
+Garantia/suporte/depoimento autorizado: ...
+Entrega e condições confirmadas: ...
+CTA único e canal disponível: ...
+```
+
+Preencha preço e selo nos campos próprios. Não copie condições de exemplo como se fossem reais. A aplicação não verifica links de contato nem configura respostas automáticas em comentários.
+
+A capa prioriza produto, gancho e CTA; a ficha resumida permanece na legenda. Banners mobile omitem os benefícios na imagem, banners web usam até um e posts/stories até dois. Não são gerados carrosséis ou vídeos neste fluxo.
+
+### Revisão das gerações
+
+Antes de publicar, confira fidelidade à foto, leitura no celular, correspondência entre benefício e ficha técnica, preço/condição de cada produto e destino do CTA. Teste cada estilo com um produto com dados completos e outro sem preço/prova social; repita com cenário, logo e dois produtos. Ausências devem ser omitidas, sem selos ou depoimentos inventados. Os prompts orientam o modelo, mas não garantem fidelidade visual ou conversão.
+
+Referência de revisão: [orientações de segurança e factualidade do Gemini](https://ai.google.dev/gemini-api/docs/safety-guidance).
