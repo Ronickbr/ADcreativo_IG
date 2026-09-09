@@ -8,7 +8,7 @@ import {
 import { parseJsonResponse, requestAi, type AiProvider } from "./lib/api";
 
 type AdFormat = "post" | "stories" | "banner" | "banner_mobile";
-type AdStyle = "gastronomia_premium" | "experiencia_vip" | "vanguarda_tech";
+import { buildCopyPrompt, buildImagePrompt, type AdStyle } from "./lib/adPrompts";
 type Badge = "a_vista" | "12x" | "promo" | "none";
 interface ImageState { file: File | null; preview: string | null; base64: string | null }
 interface Product { id: string; image: ImageState; name: string; url: string; techData: string; price: string; badge: Badge }
@@ -132,22 +132,17 @@ export default function App() {
       ...products.map(p => ({ mimeType: p.image.file?.type || p.image.preview?.match(/^data:(.*?);/)?.[1] || "image/png", data: p.image.base64! })),
       ...(logo.base64 ? [{ mimeType: logo.file?.type || "image/png", data: logo.base64 }] : []),
     ];
-    const styleData = STYLES.find(item => item.id === style)!;
+    const promptInput = { style, format: activeFormat, products,
+      hasBackground: Boolean(background.base64), hasLogo: Boolean(logo.base64) };
     setLoading(true); setResult(null); setError(null);
     try {
       setStep("Criando estratégia de campanha");
-      const copyPrompt = `Atue como diretor de arte e copywriter brasileiro de campanhas de venda. Crie uma campanha para ${activeFormat.label} (${activeFormat.ratio}) no estilo ${styleData.name}: ${styleData.desc}.
-Produtos: ${products.map((p, i) => `${i + 1}. ${p.name}; preço ${p.price || "não informado"}; selo ${BADGES.find(b => b.id === p.badge)?.label}; dados: ${p.techData || "não informados"}`).join("\n")}
-Preserve exatamente identidade, proporções, logotipos e características visuais dos produtos das imagens. Não invente especificações.
-Retorne somente JSON válido: {"headline":"","benefits":["","",""],"cta":"","caption":"","hashtags":[""],"visualDescription":"prompt detalhado em inglês para gerar a composição final"}`;
+      const copyPrompt = buildCopyPrompt(promptInput);
       const copyModel = provider === "gemini" ? "gemini-2.0-flash" : "google/gemini-2.0-flash-001";
       const copy = await requestAi({ provider, mode: "copy", model: copyModel, apiKey, prompt: copyPrompt, images });
       const campaign = parseJsonResponse<AdResult>(copy.text);
       setStep("Compondo o criativo final");
-      const visualPrompt = `Create a premium ${activeFormat.label} advertisement, aspect ratio ${activeFormat.ratio}. ${campaign.visualDescription}
-MANDATORY PRODUCT FIDELITY: preserve every visible product detail, geometry, color, materials, controls, labels and logo from references. Do not add, remove or redesign product parts.
-${background.base64 ? "Use the first reference as the environment and integrate products naturally." : "Create a detailed contextual environment with depth; never use a plain background."}
-Render in Brazilian Portuguese with perfect legibility: headline "${campaign.headline}", benefits "${campaign.benefits.join(" • ")}", ${products.map(p => p.price ? `price "${p.price}" for ${p.name}` : "").join(", ")}, CTA "${campaign.cta}".`;
+      const visualPrompt = buildImagePrompt(promptInput, campaign);
       const imageModel = provider === "gemini" ? "gemini-2.5-flash-image" : openRouterModel;
       const image = await requestAi({ provider, mode: "image", model: imageModel, apiKey, prompt: visualPrompt, images, aspectRatio: activeFormat.ratio });
       if (!image.imageUrl) throw new Error("O modelo não retornou uma imagem. Selecione um modelo com geração de imagem.");
