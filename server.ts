@@ -86,8 +86,15 @@ async function startServer() {
   });
 
   const requests = new Map<string, { count: number; reset: number }>();
+  // BOLT PERFORMANCE OPTIMIZATION:
+  // Prune expired rate-limiting entries to prevent unbounded Map memory growth and maintain fast lookups.
   app.use("/api", (req, res, next) => {
     const now = Date.now();
+    if (requests.size > 200) {
+      for (const [ip, entry] of requests) {
+        if (entry.reset < now) requests.delete(ip);
+      }
+    }
     const key = req.ip || "unknown";
     const entry = requests.get(key);
     if (!entry || entry.reset < now) requests.set(key, { count: 1, reset: now + 60_000 });
