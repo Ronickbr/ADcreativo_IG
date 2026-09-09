@@ -138,7 +138,7 @@ export default function App() {
     try {
       setStep("Criando estratégia de campanha");
       const copyPrompt = buildCopyPrompt(promptInput);
-      const copyModel = provider === "gemini" ? "gemini-2.0-flash" : "google/gemini-2.0-flash-001";
+      const copyModel = provider === "gemini" ? "gemini-2.0-flash" : "google/gemini-2.5-flash";
       const copy = await requestAi({ provider, mode: "copy", model: copyModel, apiKey, prompt: copyPrompt, images });
       const campaign = parseJsonResponse<AdResult>(copy.text);
       setStep("Compondo o criativo final");

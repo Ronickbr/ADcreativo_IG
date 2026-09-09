@@ -99,7 +99,7 @@ async function startServer() {
   app.get("/api/settings", (_req, res) => res.json({
     geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
     openRouterConfigured: Boolean(process.env.OPENROUTER_API_KEY),
-    defaultOpenRouterModel: process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001",
+    defaultOpenRouterModel: process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash",
   }));
 
   app.get("/api/proxy-image", asyncRoute(async (req, res) => {
