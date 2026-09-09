@@ -75,3 +75,13 @@ Melhorar segurança, confiabilidade, organização do código e experiência de 
 - Preservar formatos, estilos, campos de produto e suporte a Gemini/OpenRouter.
 - Aceitar as variáveis atuais durante a migração, documentando os novos nomes quando necessário.
 - Não alterar arquivos `.env` ou `.env.local`.
+
+## Atualização — prompts comerciais (2026-09-09)
+
+- Extrair a composição de prompts para `src/lib/adPrompts.ts`, mantendo interface e API.
+- Diferenciar os três estilos por dor, benefício e evidência visual, com os cinco pilares de venda.
+- Usar dados e condições fornecidos, CTA único e hierarquia adaptada ao tamanho da peça.
+- Mapear explicitamente referências de cenário, produtos e logo nas duas etapas.
+- Documentar briefing no campo existente e avaliação manual das gerações.
+- Validar tipagem/build conforme dependências disponíveis, sem chamadas pagas nem mudanças no servidor.
+- Entregar em branch e PR para revisão.
