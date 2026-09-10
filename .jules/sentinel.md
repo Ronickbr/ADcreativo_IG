@@ -1,0 +1,4 @@
+## 2025-05-18 - SSRF IPv6 Parsing Bypass in URL Safety Validator
+**Vulnerability:** Simple string prefix checks (`address.replace(/^::ffff:/, "")`, `normalized.startsWith("fe80:")`, etc.) in `isPrivateIp` failed to detect IPv4-mapped IPv6 in uppercase (`::FFFF:127.0.0.1`), uncompressed IPv6 loopbacks (`0:0:0:0:0:0:0:1`), and hex-encoded IPv4-mapped IPv6 (`::ffff:7f00:1`), allowing SSRF bypasses.
+**Learning:** Case-sensitive regex string manipulation and simple string prefix checks are insufficient for validating IPv6 formats because IPv6 addresses have multiple valid textual representations (zero compression, hex vs dotted-decimal, case variation).
+**Prevention:** Always parse IPv6 addresses into standard 16-bit word arrays before evaluating IP range constraints for loopback, link-local, ULA, or IPv4-mapped ranges.
