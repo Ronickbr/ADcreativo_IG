@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   AlertCircle, Banknote, Check, CheckCircle2, Copy, Crown, Download, Globe,
@@ -48,7 +48,8 @@ function readImage(file: File, callback: (image: ImageState) => void) {
   reader.readAsDataURL(file);
 }
 
-function ImageInput({ value, label, hint, onChange }: { value: ImageState; label: string; hint: string; onChange: (image: ImageState) => void }) {
+// ⚡ Bolt: Memoized ImageInput prevents unnecessary re-renders of image upload components when parent state (like text fields or other inputs) updates.
+const ImageInput = memo(function ImageInput({ value, label, hint, onChange }: { value: ImageState; label: string; hint: string; onChange: (image: ImageState) => void }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <div>
@@ -64,7 +65,7 @@ function ImageInput({ value, label, hint, onChange }: { value: ImageState; label
       <input ref={input} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files?.[0] && readImage(e.target.files[0], onChange)} />
     </div>
   );
-}
+});
 
 export default function App() {
   const [format, setFormat] = useState<AdFormat>("post");
@@ -92,8 +93,9 @@ export default function App() {
   const ready = products.every(item => item.name.trim() && item.image.base64);
   const completion = useMemo(() => [products[0]?.name, products[0]?.image.base64, style, format].filter(Boolean).length, [products, style, format]);
 
-  const updateProduct = (id: string, patch: Partial<Product>) => setProducts(current => current.map(item => item.id === id ? { ...item, ...patch } : item));
-  const fetchProduct = async (product: Product) => {
+  // ⚡ Bolt: Wrapped in useCallback to preserve function reference across re-renders and avoid triggering re-renders in memoized children.
+  const updateProduct = useCallback((id: string, patch: Partial<Product>) => setProducts(current => current.map(item => item.id === id ? { ...item, ...patch } : item)), []);
+  const fetchProduct = useCallback(async (product: Product) => {
     if (!product.url) return;
     setFetching(product.id); setError(null);
     try {
@@ -107,7 +109,7 @@ export default function App() {
       setNotice("Dados do produto importados.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Falha ao importar produto."); }
     finally { setFetching(null); }
-  };
+  }, [updateProduct]);
 
   const saveSettings = () => {
     geminiKey ? sessionStorage.setItem("geminiKey", geminiKey) : sessionStorage.removeItem("geminiKey");
@@ -190,7 +192,7 @@ export default function App() {
               <div className="space-y-5 p-4 sm:p-6">{products.map((product, index) => <div key={product.id} className="product-card">
                 <div className="mb-4 flex items-center justify-between"><b className="text-sm">Produto {index + 1}</b>{products.length > 1 && <button onClick={() => setProducts(p => p.filter(x => x.id !== product.id))} className="icon-button text-red-600" aria-label="Remover produto"><Trash2 size={16} /></button>}</div>
                 <div className="grid gap-4 md:grid-cols-[180px_1fr]">
-                  <ImageInput value={product.image} label="Imagem do produto *" hint="máx. 8 MB" onChange={image => updateProduct(product.id, { image })} />
+                  <ImageInput value={product.image} label="Imagem do produto *" hint="máx. 8 MB" onChange={useCallback((image: ImageState) => updateProduct(product.id, { image }), [product.id, updateProduct])} />
                   <div className="space-y-4">
                     <div><label className="label">Link do produto</label><div className="mt-2 flex gap-2"><div className="input-wrap"><Globe size={15} /><input type="url" value={product.url} onChange={e => updateProduct(product.id, { url: e.target.value })} placeholder="https://loja.com/produto" /></div><button onClick={() => fetchProduct(product)} disabled={!product.url || fetching === product.id} className="square-button" aria-label="Buscar produto">{fetching === product.id ? <Loader2 className="animate-spin" size={18} /> : <Zap size={18} />}</button></div></div>
                     <div><label className="label">Nome do produto *</label><input className="input mt-2" value={product.name} onChange={e => updateProduct(product.id, { name: e.target.value })} placeholder="Ex.: Liquidificador profissional 1,5 L" /></div>
