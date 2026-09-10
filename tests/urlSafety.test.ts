@@ -14,3 +14,13 @@ test("bloqueia IPv6 locais", () => {
   assert.equal(isPrivateIp("fd12::1"), true);
   assert.equal(isPrivateIp("fe80::1"), true);
 });
+test("bloqueia IPv6 mapeados IPv4 e variantes de loopback", () => {
+  assert.equal(isPrivateIp("::FFFF:127.0.0.1"), true);
+  assert.equal(isPrivateIp("::ffff:10.0.0.1"), true);
+  assert.equal(isPrivateIp("0:0:0:0:0:0:0:1"), true);
+  assert.equal(isPrivateIp("0000:0000:0000:0000:0000:0000:0000:0001"), true);
+  assert.equal(isPrivateIp("::ffff:7f00:1"), true);
+});
+test("permite IPv6 públicos", () => {
+  assert.equal(isPrivateIp("2001:4860:4860::8888"), false);
+});
