@@ -10,11 +10,11 @@ import { parseJsonResponse, requestAi, type AiProvider } from "./lib/api";
 type AdFormat = "post" | "stories" | "banner" | "banner_mobile";
 import { buildCopyPrompt, buildImagePrompt, type AdStyle } from "./lib/adPrompts";
 type Badge = "a_vista" | "12x" | "promo" | "none";
-interface ImageState { file: File | null; preview: string | null; base64: string | null }
+interface ImageState { file: File | null; preview: string | null; base64: string | null; mimeType?: string | null }
 interface Product { id: string; image: ImageState; name: string; url: string; techData: string; price: string; badge: Badge }
 interface AdResult { headline: string; benefits: string[]; cta: string; caption: string; hashtags: string[]; visualDescription: string; imageUrl?: string }
 
-const emptyImage = (): ImageState => ({ file: null, preview: null, base64: null });
+const emptyImage = (): ImageState => ({ file: null, preview: null, base64: null, mimeType: null });
 const emptyProduct = (): Product => ({ id: crypto.randomUUID(), image: emptyImage(), name: "", url: "", techData: "", price: "", badge: "none" });
 const FORMATS = [
   { id: "post", label: "Post", ratio: "1:1", size: "1080 × 1080", icon: LayoutTemplate },
@@ -37,19 +37,29 @@ const MODELS = [
   { id: "google/gemini-3-pro-image-preview", label: "Nano Banana Pro" },
 ] as const;
 
+// Performance optimization: Generate lightweight Blob URLs for DOM image previews
+// instead of storing multi-megabyte Base64 data URIs in state. This saves ~11MB to ~66MB of
+// memory and eliminates costly multi-megabyte string comparisons during React VDOM diffing.
 function readImage(file: File, callback: (image: ImageState) => void) {
   if (!file.type.startsWith("image/")) throw new Error("Selecione uma imagem válida.");
   if (file.size > 8_000_000) throw new Error("A imagem deve ter no máximo 8 MB.");
+  const preview = URL.createObjectURL(file);
   const reader = new FileReader();
   reader.onload = () => {
-    const preview = String(reader.result);
-    callback({ file, preview, base64: preview.split(",")[1] });
+    const result = String(reader.result);
+    callback({ file, preview, base64: result.split(",")[1], mimeType: file.type || "image/png" });
   };
   reader.readAsDataURL(file);
 }
 
 function ImageInput({ value, label, hint, onChange }: { value: ImageState; label: string; hint: string; onChange: (image: ImageState) => void }) {
   const input = useRef<HTMLInputElement>(null);
+  const clearImage = () => {
+    if (value.preview?.startsWith("blob:")) {
+      URL.revokeObjectURL(value.preview);
+    }
+    onChange(emptyImage());
+  };
   return (
     <div>
       <div className="mb-2 flex items-end justify-between gap-3">
@@ -59,9 +69,17 @@ function ImageInput({ value, label, hint, onChange }: { value: ImageState; label
         {value.preview ? <img src={value.preview} alt="" className="h-full w-full object-contain p-3" /> : (
           <><span className="icon-box"><ImagePlus size={20} /></span><span><b>Enviar imagem</b><small>PNG, JPG ou WebP</small></span></>
         )}
-        {value.preview && <span onClick={(e) => { e.stopPropagation(); onChange(emptyImage()); }} className="absolute right-2 top-2 rounded-full bg-black/70 p-1.5 text-white"><X size={14} /></span>}
+        {value.preview && <span onClick={(e) => { e.stopPropagation(); clearImage(); }} className="absolute right-2 top-2 rounded-full bg-black/70 p-1.5 text-white"><X size={14} /></span>}
       </button>
-      <input ref={input} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files?.[0] && readImage(e.target.files[0], onChange)} />
+      <input ref={input} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => {
+        if (e.target.files?.[0]) {
+          if (value.preview?.startsWith("blob:")) {
+            URL.revokeObjectURL(value.preview);
+          }
+          readImage(e.target.files[0], onChange);
+        }
+        e.target.value = "";
+      }} />
     </div>
   );
 }
@@ -128,9 +146,9 @@ export default function App() {
     }
     const apiKey = provider === "gemini" ? geminiKey : openRouterKey;
     const images = [
-      ...(background.base64 ? [{ mimeType: background.file?.type || "image/jpeg", data: background.base64 }] : []),
-      ...products.map(p => ({ mimeType: p.image.file?.type || p.image.preview?.match(/^data:(.*?);/)?.[1] || "image/png", data: p.image.base64! })),
-      ...(logo.base64 ? [{ mimeType: logo.file?.type || "image/png", data: logo.base64 }] : []),
+      ...(background.base64 ? [{ mimeType: background.mimeType || background.file?.type || "image/jpeg", data: background.base64 }] : []),
+      ...products.map(p => ({ mimeType: p.image.mimeType || p.image.file?.type || p.image.preview?.match(/^data:(.*?);/)?.[1] || "image/png", data: p.image.base64! })),
+      ...(logo.base64 ? [{ mimeType: logo.mimeType || logo.file?.type || "image/png", data: logo.base64 }] : []),
     ];
     const promptInput = { style, format: activeFormat, products,
       hasBackground: Boolean(background.base64), hasLogo: Boolean(logo.base64) };
