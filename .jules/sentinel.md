@@ -1,0 +1,4 @@
+## 2025-05-18 - SSRF IPv6 Normalization & Bracket Bypass
+**Vulnerability:** In `urlSafety.ts`, `isPrivateIp` failed to detect expanded IPv6 loopbacks (`0:0:0:0:0:0:0:1`) and hex-encoded IPv4-mapped IPv6 addresses (`::ffff:7f00:1`). Furthermore, `assertSafePublicUrl` passed `url.hostname` directly to Node's `net.isIP()`, which returns `0` for bracketed IPv6 hostnames like `[::1]`, bypassing direct IP validation.
+**Learning:** `net.isIP()` in Node.js requires unbracketed IPv6 strings. In addition, IPv6 standard representations allow multiple formats (uncompressed 8-hextets, zero-compressed `::`, IPv4-mapped dotted and hex representations) that string prefix matching fails to normalize.
+**Prevention:** Always strip URL square brackets before evaluating IP literals with `net.isIP()` or DNS lookups, and parse IPv6 addresses into 16-bit hextets to validate loopback, link-local, unique-local, site-local, multicast, and mapped IPv4 ranges numerically.
