@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   AlertCircle, Banknote, Check, CheckCircle2, Copy, Crown, Download, Globe,
@@ -37,18 +37,22 @@ const MODELS = [
   { id: "google/gemini-3-pro-image-preview", label: "Nano Banana Pro" },
 ] as const;
 
+// Optimizing string extraction: slice avoids allocating temporary string arrays from split(",")
 function readImage(file: File, callback: (image: ImageState) => void) {
   if (!file.type.startsWith("image/")) throw new Error("Selecione uma imagem válida.");
   if (file.size > 8_000_000) throw new Error("A imagem deve ter no máximo 8 MB.");
   const reader = new FileReader();
   reader.onload = () => {
     const preview = String(reader.result);
-    callback({ file, preview, base64: preview.split(",")[1] });
+    const commaIndex = preview.indexOf(",");
+    const base64 = commaIndex !== -1 ? preview.slice(commaIndex + 1) : preview;
+    callback({ file, preview, base64 });
   };
   reader.readAsDataURL(file);
 }
 
-function ImageInput({ value, label, hint, onChange }: { value: ImageState; label: string; hint: string; onChange: (image: ImageState) => void }) {
+// React.memo prevents re-rendering heavy image preview DOM nodes when unrelated parent state changes
+const ImageInput = memo(function ImageInput({ value, label, hint, onChange }: { value: ImageState; label: string; hint: string; onChange: (image: ImageState) => void }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <div>
@@ -64,7 +68,28 @@ function ImageInput({ value, label, hint, onChange }: { value: ImageState; label
       <input ref={input} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => e.target.files?.[0] && readImage(e.target.files[0], onChange)} />
     </div>
   );
-}
+});
+
+// Wrapper to ensure product image inputs remain memoized without inline function re-creations
+const ProductImageInput = memo(function ProductImageInput({
+  id,
+  image,
+  label,
+  hint,
+  onChange,
+}: {
+  id: string;
+  image: ImageState;
+  label: string;
+  hint: string;
+  onChange: (id: string, image: ImageState) => void;
+}) {
+  const handleChange = useCallback((newImage: ImageState) => {
+    onChange(id, newImage);
+  }, [id, onChange]);
+
+  return <ImageInput value={image} label={label} hint={hint} onChange={handleChange} />;
+});
 
 export default function App() {
   const [format, setFormat] = useState<AdFormat>("post");
@@ -92,7 +117,8 @@ export default function App() {
   const ready = products.every(item => item.name.trim() && item.image.base64);
   const completion = useMemo(() => [products[0]?.name, products[0]?.image.base64, style, format].filter(Boolean).length, [products, style, format]);
 
-  const updateProduct = (id: string, patch: Partial<Product>) => setProducts(current => current.map(item => item.id === id ? { ...item, ...patch } : item));
+  const updateProduct = useCallback((id: string, patch: Partial<Product>) => setProducts(current => current.map(item => item.id === id ? { ...item, ...patch } : item)), []);
+  const handleProductImageChange = useCallback((id: string, image: ImageState) => updateProduct(id, { image }), [updateProduct]);
   const fetchProduct = async (product: Product) => {
     if (!product.url) return;
     setFetching(product.id); setError(null);
@@ -190,7 +216,7 @@ export default function App() {
               <div className="space-y-5 p-4 sm:p-6">{products.map((product, index) => <div key={product.id} className="product-card">
                 <div className="mb-4 flex items-center justify-between"><b className="text-sm">Produto {index + 1}</b>{products.length > 1 && <button onClick={() => setProducts(p => p.filter(x => x.id !== product.id))} className="icon-button text-red-600" aria-label="Remover produto"><Trash2 size={16} /></button>}</div>
                 <div className="grid gap-4 md:grid-cols-[180px_1fr]">
-                  <ImageInput value={product.image} label="Imagem do produto *" hint="máx. 8 MB" onChange={image => updateProduct(product.id, { image })} />
+                  <ProductImageInput id={product.id} image={product.image} label="Imagem do produto *" hint="máx. 8 MB" onChange={handleProductImageChange} />
                   <div className="space-y-4">
                     <div><label className="label">Link do produto</label><div className="mt-2 flex gap-2"><div className="input-wrap"><Globe size={15} /><input type="url" value={product.url} onChange={e => updateProduct(product.id, { url: e.target.value })} placeholder="https://loja.com/produto" /></div><button onClick={() => fetchProduct(product)} disabled={!product.url || fetching === product.id} className="square-button" aria-label="Buscar produto">{fetching === product.id ? <Loader2 className="animate-spin" size={18} /> : <Zap size={18} />}</button></div></div>
                     <div><label className="label">Nome do produto *</label><input className="input mt-2" value={product.name} onChange={e => updateProduct(product.id, { name: e.target.value })} placeholder="Ex.: Liquidificador profissional 1,5 L" /></div>
